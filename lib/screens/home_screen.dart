@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../widgets/continue_watching_section.dart';
 import '../widgets/hot_movies_section.dart';
 import '../widgets/hot_tv_section.dart';
@@ -455,7 +456,6 @@ class _HomeScreenState extends State<HomeScreen> {
         const ShowScreen(),
         const LiveScreen(),
       ],
-      ),
     );
   }
 

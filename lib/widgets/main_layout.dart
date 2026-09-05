@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:selene/services/search_service.dart';
@@ -938,10 +939,12 @@ class _MainLayoutState extends State<MainLayout> {
                       widget.onBottomNavChanged(index);
                       return KeyEventResult.handled;
                     }
-                    return KeyEventResult.ignore;
+                    return KeyEventResult.ignored;
                   },
-                  builder: (context, focusNode) {
-                    final bool isFocused = focusNode.hasFocus;
+                  child: Builder(
+                    builder: (context) {
+                      final focusNode = Focus.of(context);
+                      final bool isFocused = focusNode.hasFocus;
                     final bool isHovered =
                         DeviceUtils.isPC() && _hoveredNavIndex == index;
                     final Color activeColor = const Color(0xFF27ae60);
@@ -1014,7 +1017,7 @@ class _MainLayoutState extends State<MainLayout> {
                         ),
                       ),
                     );
-                  },
+                  }),
                 ),
                 // 平板模式下在按钮之间添加间距
                 if (isTablet && index < navItems.length - 1)
