@@ -266,11 +266,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // 获取所有 Set-Cookie 头部
     final setCookieHeaders = response.headers['set-cookie'];
-    if (setCookieHeaders != null) {
-      // HTTP 头部通常是 String 类型
-      final cookieParts = setCookieHeaders.split(';');
-      if (cookieParts.isNotEmpty) {
-        cookies.add(cookieParts[0].trim());
+    if (setCookieHeaders != null && setCookieHeaders.isNotEmpty) {
+      // Dart 的 http 包会把多个 Set-Cookie 头部用 ", " 合并成一个字符串。
+      // Cookie 属性值（如 Expires=Thu, 01 Jan 1970）本身也含逗号，
+      // 因此只在“逗号后紧跟一个新的 name=”处切分，避免误切属性值。
+      final pieces = setCookieHeaders.split(
+        RegExp(r',\s*(?=[A-Za-z0-9_.-]+\s*=)'),
+      );
+      for (final piece in pieces) {
+        // 每个 cookie 取第一个 ";" 之前的部分，即 name=value
+        final nameValue = piece.split(';').first.trim();
+        // 跳过空值 cookie（如 dong_media_return_to=）
+        if (nameValue.isNotEmpty &&
+            nameValue.contains('=') &&
+            !nameValue.endsWith('=')) {
+          cookies.add(nameValue);
+        }
       }
     }
 
