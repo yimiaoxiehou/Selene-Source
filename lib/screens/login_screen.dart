@@ -953,11 +953,12 @@ class _LoginScreenState extends State<LoginScreen> {
       canPop: false,
       onPopInvoked: (didPop) {
         if (!didPop) {
+          final DateTime? closedAt = _editorClosedAt;
           if (_editingField != null) {
             // 系统返回通道关闭键盘（KeyEvent 通道未处理时）
             setState(() => _editingField = null);
-          } else if (_editorClosedAt != null &&
-              DateTime.now().difference(_editorClosedAt) <
+          } else if (closedAt != null &&
+              DateTime.now().difference(closedAt) <
                   const Duration(milliseconds: 700)) {
             // 同一次返回按键已由 KeyEvent 通道关闭键盘，忽略系统返回，不退出
           } else {
