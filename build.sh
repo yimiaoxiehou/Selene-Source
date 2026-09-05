@@ -90,14 +90,14 @@ get_dependencies() {
 
 # 构建安卓版本
 build_android() {
-    log_info "开始构建安卓 armv8 和 armv7a 版本..."
+    log_info "开始构建安卓 armv7a 版本（调试中暂时关闭 armv8）..."
     
     # 确保安卓构建目录存在
     mkdir -p build/android
     
-    # 构建 APK，添加优化参数
+    # 构建 APK，添加优化参数（调试期仅构建 armeabi-v7a，节省时间）
     flutter build apk --release \
-        --target-platform android-arm64,android-arm \
+        --target-platform android-arm \
         --split-per-abi \
         --obfuscate \
         --split-debug-info=build/app/outputs/symbols
@@ -337,9 +337,10 @@ main() {
     
     # 检查参数
     BUILD_ANDROID=true
-    BUILD_IOS=true
-    BUILD_MACOS_ARM64=true
-    BUILD_MACOS_X86_64=true
+    # 调试期暂时关闭 Apple 平台（macOS/iOS）构建，完成调试后改回 true
+    BUILD_IOS=false
+    BUILD_MACOS_ARM64=false
+    BUILD_MACOS_X86_64=false
     PARALLEL_BUILD=true
     
     while [[ $# -gt 0 ]]; do
@@ -472,6 +473,13 @@ main() {
     fi
     
     copy_artifacts
+    # 调试期：若（因 Apple 构建被关闭）dist 为空，写入占位文件，
+    # 避免 macOS/iOS 任务的“Upload artifacts”因找不到文件而失败。
+    if [ -z "$(ls -A dist 2>/dev/null)" ]; then
+        mkdir -p dist
+        echo "Apple/iOS builds skipped during debug" > dist/SKIPPED.txt
+        log_warning "dist 为空，已写入占位文件 SKIPPED.txt"
+    fi
     show_results
     
     # 清理临时构建目录
