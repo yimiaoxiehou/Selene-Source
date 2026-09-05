@@ -234,6 +234,8 @@ class _LoginScreenState extends State<LoginScreen> {
   /// 返回 true 表示已消费该按键，阻止其继续冒泡到焦点系统/系统返回（避免退出应用）。
   /// 不编辑时返回 false，交由默认焦点遍历与各控件自身处理，不影响正常遥控导航。
   bool _handleHardwareKey(KeyEvent event) {
+    // TEMP DEBUG: disable handler to isolate black-screen cause
+    return false;
     if (!_editorConsumesBack) return false;
     if (event is! KeyDownEvent) {
       // 即便非 KeyDown（如 KeyUp），只要处于可消费状态也吞掉，避免误触发系统返回
