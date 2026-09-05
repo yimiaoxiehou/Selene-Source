@@ -8,6 +8,7 @@ import '../services/local_mode_storage_service.dart';
 import '../services/subscription_service.dart';
 import '../utils/device_utils.dart';
 import '../utils/font_utils.dart';
+import '../widgets/tv_keyboard.dart';
 import '../widgets/windows_title_bar.dart';
 import 'home_screen.dart';
 
@@ -117,24 +118,53 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// 本地/服务器模式切换按钮（TV/遥控可聚焦，替代连点 Logo 10 次的隐藏操作）
   Widget _buildModeToggle() {
-    return TextButton(
-      onPressed: () {
-        setState(() {
-          _isLocalMode = !_isLocalMode;
-          _validateForm();
-        });
-        _showToast(
-          _isLocalMode ? '已切换到本地模式' : '已切换到服务器模式',
-          const Color(0xFF27ae60),
-        );
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+          _toggleMode();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
       },
-      child: Text(
-        _isLocalMode ? '当前：本地模式（点击切换服务器模式）' : '当前：服务器模式（点击切换本地模式）',
-        style: FontUtils.poppins(
-          fontSize: 12,
-          color: const Color(0xFF7f8c8d),
-        ),
+      child: Builder(
+        builder: (context) {
+          final focused = Focus.of(context).hasFocus;
+          return TextButton(
+            onPressed: _toggleMode,
+            style: TextButton.styleFrom(
+              side: focused
+                  ? const BorderSide(color: Color(0xFF27ae60), width: 2)
+                  : BorderSide.none,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              _isLocalMode
+                  ? '当前：本地模式（点击切换服务器模式）'
+                  : '当前：服务器模式（点击切换本地模式）',
+              style: FontUtils.poppins(
+                fontSize: 12,
+                color: const Color(0xFF7f8c8d),
+              ),
+            ),
+          );
+        },
       ),
+    );
+  }
+
+  void _toggleMode() {
+    setState(() {
+      _isLocalMode = !_isLocalMode;
+      _validateForm();
+    });
+    _showToast(
+      _isLocalMode ? '已切换到本地模式' : '已切换到服务器模式',
+      const Color(0xFF27ae60),
     );
   }
 
@@ -335,7 +365,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleLogin() async {
-    if (_formKey.currentState!.validate() && _isFormValid) {
+    if ((_formKey.currentState?.validate() ?? true) && _isFormValid) {
       setState(() {
         _isLoading = true;
       });
@@ -411,7 +441,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleLocalModeLogin() async {
-    if (_formKey.currentState!.validate()) {
+    if (_formKey.currentState?.validate() ?? true) {
       setState(() {
         _isLoading = true;
       });
@@ -559,6 +589,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final isTablet = DeviceUtils.isTablet(context);
+    final isTv = DeviceUtils.isTV();
 
     return Scaffold(
       body: Container(
@@ -590,8 +621,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       horizontal: isTablet ? 0 : 32.0,
                       vertical: 24.0,
                     ),
-                    child:
-                        isTablet ? _buildTabletLayout() : _buildMobileLayout(),
+                    child: isTv
+                        ? _buildTvLayout()
+                        : (isTablet
+                            ? _buildTabletLayout()
+                            : _buildMobileLayout()),
                   ),
                 ),
               ),
@@ -866,6 +900,169 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
         ),
       ],
+    );
+  }
+
+  // TV/遥控布局：不使用系统 IME，改用可聚焦的只读显示 + 屏幕键盘
+  Widget _buildTvLayout() {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 520),
+      padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Selene 标题 - 可点击
+          GestureDetector(
+            onTap: _handleLogoTap,
+            child: Text(
+              'Selene',
+              style: FontUtils.sourceCodePro(
+                fontSize: 42,
+                fontWeight: FontWeight.w400,
+                color: const Color(0xFF2c3e50),
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // 可聚焦的模式切换按钮
+          _buildModeToggle(),
+          const SizedBox(height: 28),
+          _isLocalMode ? _buildTvLocalModeForm() : _buildTvServerForm(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTvServerForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TvTextField(
+          label: '服务器地址',
+          value: _urlController.text,
+          icon: Icons.link,
+          onChanged: (v) {
+            _urlController.text = v;
+            _validateForm();
+          },
+        ),
+        const SizedBox(height: 20),
+        TvTextField(
+          label: '用户名',
+          value: _usernameController.text,
+          icon: Icons.person,
+          onChanged: (v) {
+            _usernameController.text = v;
+            _validateForm();
+          },
+        ),
+        const SizedBox(height: 20),
+        TvTextField(
+          label: '密码',
+          value: _passwordController.text,
+          icon: Icons.lock,
+          obscure: true,
+          onChanged: (v) {
+            _passwordController.text = v;
+            _validateForm();
+          },
+        ),
+        const SizedBox(height: 32),
+        _buildTvLoginButton(_handleLogin),
+      ],
+    );
+  }
+
+  Widget _buildTvLocalModeForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TvTextField(
+          label: '订阅链接',
+          value: _subscriptionUrlController.text,
+          icon: Icons.link,
+          onChanged: (v) {
+            _subscriptionUrlController.text = v;
+            _validateForm();
+          },
+        ),
+        const SizedBox(height: 32),
+        _buildTvLoginButton(_handleLocalModeLogin),
+      ],
+    );
+  }
+
+  /// TV/遥控可聚焦的登录按钮：OK 键触发登录
+  Widget _buildTvLoginButton(VoidCallback onPressed) {
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+          if (!_isLoading && _isFormValid) onPressed();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Builder(
+        builder: (context) {
+          final focused = Focus.of(context).hasFocus;
+          final enabled = _isFormValid && !_isLoading;
+          return ElevatedButton(
+            onPressed: enabled ? onPressed : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: enabled
+                  ? const Color(0xFF2c3e50)
+                  : const Color(0xFFbdc3c7),
+              foregroundColor: enabled ? Colors.white : const Color(0xFF7f8c8d),
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
+              shadowColor: Colors.transparent,
+              side: focused
+                  ? const BorderSide(color: Color(0xFF27ae60), width: 2)
+                  : BorderSide.none,
+            ),
+            child: _isLoading
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '登录中...',
+                        style: FontUtils.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  )
+                : Text(
+                    '登录',
+                    style: FontUtils.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+          );
+        },
+      ),
     );
   }
 
