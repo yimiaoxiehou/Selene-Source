@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// 设备类型工具类
 class DeviceUtils {
@@ -47,6 +48,31 @@ class DeviceUtils {
   /// 判断当前平台是否是 PC（Windows 或 macOS）
   static bool isPC() {
     return isWindows() || isMacOS();
+  }
+
+  /// Android TV 检测：通过原生 uiMode 判断，结果缓存在 [_isTv]
+  static const MethodChannel _deviceChannel =
+      MethodChannel('selene/device');
+  static bool _isTv = false;
+
+  /// 当前设备是否为 Android TV（由 [initTv] 初始化）
+  static bool isTV() => _isTv;
+
+  /// 是否为“大屏遥控设备”（PC 或 Android TV），用于复用桌面端布局/播放器
+  static bool isDesktopOrTV() => isPC() || _isTv;
+
+  /// 在应用启动时调用，向原生查询是否处于电视 uiMode
+  static Future<void> initTv() async {
+    if (!Platform.isAndroid) {
+      _isTv = false;
+      return;
+    }
+    try {
+      final bool? tv = await _deviceChannel.invokeMethod<bool>('isTv');
+      _isTv = tv ?? false;
+    } catch (_) {
+      _isTv = false;
+    }
   }
 
   /// 根据屏幕宽度动态计算平板模式下的列数（6～8列）

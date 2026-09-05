@@ -1068,7 +1068,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (!_isCasting)
           VideoPlayerWidget(
             surface:
-                isPC ? VideoPlayerSurface.desktop : VideoPlayerSurface.mobile,
+                DeviceUtils.isDesktopOrTV() ? VideoPlayerSurface.desktop : VideoPlayerSurface.mobile,
             url: null,
             onBackPressed: _onBackPressed,
             onControllerCreated: (controller) {

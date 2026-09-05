@@ -917,91 +917,115 @@ class _MainLayoutState extends State<MainLayout> {
       child: Row(
         mainAxisAlignment:
             isTablet ? MainAxisAlignment.center : MainAxisAlignment.spaceEvenly,
-        children: [
-          // 平板模式下添加左侧空白
-          if (isTablet) const Spacer(flex: 3),
+          children: [
+            // 平板模式下添加左侧空白
+            if (isTablet) const Spacer(flex: 3),
 
-          // 导航按钮
-          ...navItems.asMap().entries.expand((entry) {
-            int index = entry.key;
-            Map<String, dynamic> item = entry.value;
-            bool isSelected =
-                !widget.isSearchMode && widget.currentBottomNavIndex == index;
-            bool isHovered = DeviceUtils.isPC() && _hoveredNavIndex == index;
+            // 导航按钮（TV/遥控：每个按钮可聚焦，OK 键切换分区）
+            ...navItems.asMap().entries.expand((entry) {
+              int index = entry.key;
+              Map<String, dynamic> item = entry.value;
+              bool isSelected =
+                  !widget.isSearchMode && widget.currentBottomNavIndex == index;
 
-            return [
-              MouseRegion(
-                cursor: DeviceUtils.isPC()
-                    ? SystemMouseCursors.click
-                    : MouseCursor.defer,
-                onEnter: DeviceUtils.isPC()
-                    ? (_) {
-                        setState(() {
-                          _hoveredNavIndex = index;
-                        });
-                      }
-                    : null,
-                onExit: DeviceUtils.isPC()
-                    ? (_) {
-                        setState(() {
-                          _hoveredNavIndex = null;
-                        });
-                      }
-                    : null,
-                child: GestureDetector(
-                  onTap: () {
-                    widget.onBottomNavChanged(index);
+              return [
+                Focus(
+                  onKeyEvent: (node, event) {
+                    if (event is KeyDownEvent &&
+                        (event.logicalKey == LogicalKeyboardKey.enter ||
+                            event.logicalKey == LogicalKeyboardKey.select ||
+                            event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+                      widget.onBottomNavChanged(index);
+                      return KeyEventResult.handled;
+                    }
+                    return KeyEventResult.ignore;
                   },
-                  behavior: HitTestBehavior.opaque, // 确保整个区域都可以点击
-                  child: Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isTablet ? 16 : 12,
-                      vertical: 8,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          item['icon'],
-                          color: isSelected
-                              ? const Color(0xFF27ae60)
-                              : isHovered
-                                  ? const Color(0xFF52c77a) // hover 时的浅绿色
-                                  : themeService.isDarkMode
-                                      ? const Color(0xFFb0b0b0)
-                                      : const Color(0xFF7f8c8d),
-                          size: 24,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item['label'],
-                          style: FontUtils.poppins(
-                            fontSize: 12,
-                            fontWeight:
-                                isSelected ? FontWeight.w600 : FontWeight.w400,
-                            color: isSelected
-                                ? const Color(0xFF27ae60)
-                                : isHovered
-                                    ? const Color(0xFF52c77a) // hover 时的浅绿色
-                                    : themeService.isDarkMode
-                                        ? const Color(0xFFb0b0b0)
-                                        : const Color(0xFF7f8c8d),
+                  builder: (context, focusNode) {
+                    final bool isFocused = focusNode.hasFocus;
+                    final bool isHovered =
+                        DeviceUtils.isPC() && _hoveredNavIndex == index;
+                    final Color activeColor = const Color(0xFF27ae60);
+                    final Color hoverColor = const Color(0xFF52c77a);
+                    final Color iconColor = (isSelected || isFocused)
+                        ? activeColor
+                        : isHovered
+                            ? hoverColor
+                            : themeService.isDarkMode
+                                ? const Color(0xFFb0b0b0)
+                                : const Color(0xFF7f8c8d);
+                    return MouseRegion(
+                      cursor: DeviceUtils.isPC()
+                          ? SystemMouseCursors.click
+                          : MouseCursor.defer,
+                      onEnter: DeviceUtils.isPC()
+                          ? (_) {
+                              setState(() {
+                                _hoveredNavIndex = index;
+                              });
+                            }
+                          : null,
+                      onExit: DeviceUtils.isPC()
+                          ? (_) {
+                              setState(() {
+                                _hoveredNavIndex = null;
+                              });
+                            }
+                          : null,
+                      child: GestureDetector(
+                        onTap: () {
+                          widget.onBottomNavChanged(index);
+                        },
+                        behavior: HitTestBehavior.opaque, // 确保整个区域都可以点击
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isTablet ? 16 : 12,
+                            vertical: 8,
+                          ),
+                          decoration: isFocused
+                              ? BoxDecoration(
+                                  border: Border.all(
+                                    color: activeColor,
+                                    width: 2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                )
+                              : null,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                item['icon'],
+                                color: iconColor,
+                                size: 24,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                item['label'],
+                                style: FontUtils.poppins(
+                                  fontSize: 12,
+                                  fontWeight: (isSelected || isFocused)
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: iconColor,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 ),
-              ),
-              // 平板模式下在按钮之间添加间距
-              if (isTablet && index < navItems.length - 1)
-                const SizedBox(width: 36),
-            ];
-          }),
+                // 平板模式下在按钮之间添加间距
+                if (isTablet && index < navItems.length - 1)
+                  const SizedBox(width: 36),
+              ];
+            }),
 
-          // 平板模式下添加右侧空白
-          if (isTablet) const Spacer(flex: 3),
-        ],
+            // 平板模式下添加右侧空白
+            if (isTablet) const Spacer(flex: 3),
+          ],
+        ),
       ),
     );
   }

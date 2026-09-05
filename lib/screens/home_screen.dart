@@ -38,6 +38,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedTopTab = '首页';
   late PageController _pageController;
   late PageController _bottomNavPageController;
+  // TV/遥控：记录上次按返回键的时间，用于“再按一次退出”
+  DateTime? _lastBackPressTime;
 
   @override
   void initState() {
@@ -203,6 +205,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
+      ),
     );
   }
 
@@ -389,6 +392,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // TV/遥控（及 Android）：在首页根目录按返回键，需“再按一次”才退出，避免误触
+    if (Platform.isAndroid) {
+      return PopScope(
+        canPop: false,
+        onPopInvoked: (bool didPop) {
+          if (didPop) return;
+          final now = DateTime.now();
+          if (_lastBackPressTime != null &&
+              now.difference(_lastBackPressTime!) <
+                  const Duration(seconds: 2)) {
+            SystemNavigator.pop();
+            return;
+          }
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('再按一次返回键退出应用'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        },
+        child: MainLayout(
+          content: _buildBottomNavPageView(),
+          currentBottomNavIndex: _currentBottomNavIndex,
+          onBottomNavChanged: _onBottomNavChanged,
+          selectedTopTab: _selectedTopTab,
+          onTopTabChanged: _onTopTabChanged,
+          onHomeTap: _onHomeTap,
+          onSearchTap: _onSearchTap,
+        ),
+      );
+    }
     return MainLayout(
       content: _buildBottomNavPageView(),
       currentBottomNavIndex: _currentBottomNavIndex,
@@ -420,6 +455,7 @@ class _HomeScreenState extends State<HomeScreen> {
         const ShowScreen(),
         const LiveScreen(),
       ],
+      ),
     );
   }
 

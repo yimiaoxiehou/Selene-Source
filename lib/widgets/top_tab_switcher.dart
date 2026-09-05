@@ -136,18 +136,54 @@ class _TopTabSwitcherState extends State<TopTabSwitcher>
                   children: [
                     // 首页按钮
                     Expanded(
-                      child: _buildTabButton(
-                          '首页', widget.selectedTab == '首页', 0, themeService),
+                      child: Focus(
+                        onKeyEvent: (node, event) {
+                          if (event is KeyDownEvent &&
+                              (event.logicalKey == LogicalKeyboardKey.enter ||
+                               event.logicalKey == LogicalKeyboardKey.select ||
+                               event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+                            widget.onTabChanged('首页');
+                            return KeyEventResult.handled;
+                          }
+                          return KeyEventResult.ignored;
+                        },
+                        child: _buildTabButton(
+                            '首页', widget.selectedTab == '首页', 0, themeService),
+                      ),
                     ),
                     // 播放历史按钮
                     Expanded(
-                      child: _buildTabButton('播放历史',
-                          widget.selectedTab == '播放历史', 1, themeService),
+                      child: Focus(
+                        onKeyEvent: (node, event) {
+                          if (event is KeyDownEvent &&
+                              (event.logicalKey == LogicalKeyboardKey.enter ||
+                               event.logicalKey == LogicalKeyboardKey.select ||
+                               event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+                            widget.onTabChanged('播放历史');
+                            return KeyEventResult.handled;
+                          }
+                          return KeyEventResult.ignored;
+                        },
+                        child: _buildTabButton('播放历史',
+                            widget.selectedTab == '播放历史', 1, themeService),
+                      ),
                     ),
                     // 收藏夹按钮
                     Expanded(
-                      child: _buildTabButton(
-                          '收藏夹', widget.selectedTab == '收藏夹', 2, themeService),
+                      child: Focus(
+                        onKeyEvent: (node, event) {
+                          if (event is KeyDownEvent &&
+                              (event.logicalKey == LogicalKeyboardKey.enter ||
+                               event.logicalKey == LogicalKeyboardKey.select ||
+                               event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+                            widget.onTabChanged('收藏夹');
+                            return KeyEventResult.handled;
+                          }
+                          return KeyEventResult.ignored;
+                        },
+                        child: _buildTabButton(
+                            '收藏夹', widget.selectedTab == '收藏夹', 2, themeService),
+                      ),
                     ),
                   ],
                 ),

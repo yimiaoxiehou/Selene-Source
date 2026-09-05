@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import '../utils/device_utils.dart';
 import 'dlna_device_dialog.dart';
 
 // 带 hover 效果的按钮组件
@@ -203,6 +204,10 @@ class _PCPlayerControlsState extends State<PCPlayerControls> {
 
   void _startHideTimer() {
     _hideTimer?.cancel();
+    // TV/遥控设备没有鼠标，控制栏常驻显示，避免遥控操作后界面无反馈
+    if (DeviceUtils.isTV()) {
+      return;
+    }
     // 如果倍速菜单或音量菜单正在显示或鼠标悬停在按钮/菜单上，不启动隐藏定时器
     if (_showSpeedMenu ||
         _isHoveringSpeedButton ||
@@ -225,6 +230,10 @@ class _PCPlayerControlsState extends State<PCPlayerControls> {
 
   void _forceStartHideTimer() {
     _hideTimer?.cancel();
+    // TV/遥控设备控制栏常驻
+    if (DeviceUtils.isTV()) {
+      return;
+    }
     _hideTimer = Timer(const Duration(seconds: 3), () {
       if (mounted) {
         setState(() {

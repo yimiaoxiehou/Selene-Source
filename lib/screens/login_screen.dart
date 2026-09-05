@@ -115,6 +115,29 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// 本地/服务器模式切换按钮（TV/遥控可聚焦，替代连点 Logo 10 次的隐藏操作）
+  Widget _buildModeToggle() {
+    return TextButton(
+      onPressed: () {
+        setState(() {
+          _isLocalMode = !_isLocalMode;
+          _validateForm();
+        });
+        _showToast(
+          _isLocalMode ? '已切换到本地模式' : '已切换到服务器模式',
+          const Color(0xFF27ae60),
+        );
+      },
+      child: Text(
+        _isLocalMode ? '当前：本地模式（点击切换服务器模式）' : '当前：服务器模式（点击切换本地模式）',
+        style: FontUtils.poppins(
+          fontSize: 12,
+          color: const Color(0xFF7f8c8d),
+        ),
+      ),
+    );
+  }
+
   void _validateForm() {
     if (!mounted) return;
 
@@ -597,7 +620,10 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 12),
+        // TV/遥控：可聚焦的模式切换按钮
+        _buildModeToggle(),
+        const SizedBox(height: 28),
 
         // 登录表单 - 无边框设计
         Form(
@@ -864,7 +890,10 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 12),
+          // TV/遥控：可聚焦的模式切换按钮
+          _buildModeToggle(),
+          const SizedBox(height: 28),
 
           // 登录表单 - 无边框设计
           Form(

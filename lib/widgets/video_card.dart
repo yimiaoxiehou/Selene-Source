@@ -50,6 +50,7 @@ class _VideoCardState extends State<VideoCard> {
   @override
   Widget build(BuildContext context) {
     final bool isPC = DeviceUtils.isPC();
+    final bool isTV = DeviceUtils.isTV();
 
     return Consumer<ThemeService>(
       builder: (context, themeService, child) {
@@ -606,7 +607,7 @@ class _VideoCardState extends State<VideoCard> {
             }
 
             // 非PC平台，添加GestureDetector
-            return GestureDetector(
+            final Widget tappable = GestureDetector(
               onTap: widget.onTap,
               onLongPress: (widget.from == 'playrecord' ||
                       widget.from == 'douban' ||
@@ -647,6 +648,45 @@ class _VideoCardState extends State<VideoCard> {
               behavior: HitTestBehavior.opaque,
               child: cardContent,
             );
+
+            // Android TV：使卡片可获得焦点并显示焦点高亮，遥控器 OK/Enter 触发 onTap
+            if (isTV) {
+              return Focus(
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent &&
+                      (event.logicalKey == LogicalKeyboardKey.enter ||
+                       event.logicalKey == LogicalKeyboardKey.select ||
+                       event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+                    widget.onTap?.call();
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: Builder(
+                  builder: (ctx) {
+                    final bool focused = Focus.of(ctx).hasFocus;
+                    return AnimatedScale(
+                      scale: focused ? 1.08 : 1.0,
+                      duration: const Duration(milliseconds: 150),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: focused
+                              ? Border.all(
+                                  color: const Color(0xFF27ae60),
+                                  width: 3,
+                                )
+                              : null,
+                        ),
+                        child: tappable,
+                      ),
+                    );
+                  },
+                ),
+              );
+            }
+
+            return tappable;
           },
         );
       },
