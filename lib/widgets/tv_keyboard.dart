@@ -17,14 +17,29 @@ enum _TvKeyAction { insert, backspace, space, clear, done }
 ///
 /// 不使用系统 IME，避免 Android TV 上聚焦输入框时系统键盘抢占 D-pad 焦点、
 /// 导致遥控器无法在输入框/按钮之间移动且无法退出输入模式的问题。
+///
+/// 以回调方式工作（[onChanged]/[onDone]/[onCancel]），由调用方以“覆盖层”而非
+/// 对话框路由的形式展示，从而让返回键只关闭键盘、不会因系统返回路由而退出应用。
 class TvKeyboard extends StatefulWidget {
   final String initialValue;
   final bool obscure;
+
+  /// 每次输入变化时的实时回调（用于同步回填到对应输入框）
+  final ValueChanged<String> onChanged;
+
+  /// 点击“完成”提交编辑
+  final ValueChanged<String> onDone;
+
+  /// 点击返回键取消编辑
+  final VoidCallback onCancel;
 
   const TvKeyboard({
     super.key,
     required this.initialValue,
     this.obscure = false,
+    required this.onChanged,
+    required this.onDone,
+    required this.onCancel,
   });
 
   @override
@@ -65,15 +80,11 @@ class _TvKeyboardState extends State<TvKeyboard> {
   }
 
   void _moveLeft() {
-    if (_col > 0) {
-      setState(() => _col--);
-    }
+    if (_col > 0) setState(() => _col--);
   }
 
   void _moveRight() {
-    if (_col < _rows[_row].length - 1) {
-      setState(() => _col++);
-    }
+    if (_col < _rows[_row].length - 1) setState(() => _col++);
   }
 
   void _moveUp() {
@@ -94,21 +105,29 @@ class _TvKeyboardState extends State<TvKeyboard> {
     }
   }
 
+  void _commit() {
+    widget.onChanged(_text);
+  }
+
   void _activate() {
     final k = _rows[_row][_col];
     switch (k.action) {
       case _TvKeyAction.insert:
         setState(() => _text += k.value!);
+        _commit();
       case _TvKeyAction.space:
         setState(() => _text += ' ');
+        _commit();
       case _TvKeyAction.backspace:
         setState(() {
           if (_text.isNotEmpty) _text = _text.substring(0, _text.length - 1);
         });
+        _commit();
       case _TvKeyAction.clear:
         setState(() => _text = '');
+        _commit();
       case _TvKeyAction.done:
-        Navigator.of(context).pop(_text);
+        widget.onDone(_text);
     }
   }
 
@@ -137,11 +156,7 @@ class _TvKeyboardState extends State<TvKeyboard> {
       _activate();
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.goBack) {
-      // 返回键关闭键盘，取消编辑
-      Navigator.of(context).pop(null);
-      return KeyEventResult.handled;
-    }
+    // 返回键交由外层 PopScope 统一处理（关闭覆盖层），此处不消费，避免重复关闭
     return KeyEventResult.ignored;
   }
 
@@ -178,93 +193,73 @@ class _TvKeyboardState extends State<TvKeyboard> {
   Widget build(BuildContext context) {
     final display =
         widget.obscure && _text.isNotEmpty ? '•' * _text.length : _text;
-    return PopScope(
-      // 关闭对话框的返回由下方 Focus 的 onKeyEvent（返回键）统一处理，
-      // 避免系统返回既触发路由自动 pop 又触发此处 pop 造成重复 pop。
-      canPop: false,
-      child: Container(
-        width: 640,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFf2f5f7),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 当前输入内容
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF27ae60), width: 2),
-              ),
-              child: Text(
-                display.isEmpty ? ' ' : display,
-                style: FontUtils.poppins(
-                  fontSize: 18,
-                  color: const Color(0xFF2c3e50),
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+    return Container(
+      width: 640,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFf2f5f7),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 当前输入内容
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF27ae60), width: 2),
             ),
-            const SizedBox(height: 16),
-            // 键盘网格
-            Focus(
-              autofocus: true,
-              onKeyEvent: _onKey,
-              child: Column(
-                children: [
-                  for (int r = 0; r < _rows.length; r++)
-                    Row(
-                      children: [
-                        for (int c = 0; c < _rows[r].length; c++)
-                          Expanded(
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child:
-                                  _buildKey(_rows[r][c], r == _row && c == _col),
-                            ),
-                          ),
-                      ],
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '方向键移动 · OK 输入 · 返回键关闭',
+            child: Text(
+              display.isEmpty ? ' ' : display,
               style: FontUtils.poppins(
-                fontSize: 12,
-                color: const Color(0xFF7f8c8d),
+                fontSize: 18,
+                color: const Color(0xFF2c3e50),
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          // 键盘网格
+          Focus(
+            autofocus: true,
+            onKeyEvent: _onKey,
+            child: Column(
+              children: [
+                for (int r = 0; r < _rows.length; r++)
+                  Row(
+                    children: [
+                      for (int c = 0; c < _rows[r].length; c++)
+                        Expanded(
+                          child: AspectRatio(
+                            aspectRatio: 1,
+                            child:
+                                _buildKey(_rows[r][c], r == _row && c == _col),
+                          ),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '方向键移动 · OK 输入 · 返回键关闭',
+            style: FontUtils.poppins(
+              fontSize: 12,
+              color: const Color(0xFF7f8c8d),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// 弹出 TV 屏幕键盘并编辑文本，返回编辑后的字符串，取消则返回 null
-Future<String?> showTvKeyboard(
-  BuildContext context,
-  String initialValue, {
-  bool obscure = false,
-}) {
-  return showDialog<String>(
-    context: context,
-    builder: (ctx) => Dialog(
-      backgroundColor: Colors.transparent,
-      child: TvKeyboard(initialValue: initialValue, obscure: obscure),
-    ),
-  );
-}
-
-/// TV/遥控器专用的“输入框”：可聚焦的只读显示，OK 键打开屏幕键盘编辑
+/// TV/遥控专用的“输入框”：可聚焦的只读显示，OK 键触发 [onTap] 打开屏幕键盘
 ///
 /// 替代系统 TextFormField，避免在 Android TV 上触发系统 IME 从而锁死 D-pad 导航。
 class TvTextField extends StatelessWidget {
@@ -274,21 +269,18 @@ class TvTextField extends StatelessWidget {
   final IconData icon;
   final ValueChanged<String> onChanged;
 
+  /// 打开编辑器（由调用方决定如何展示屏幕键盘）
+  final VoidCallback onTap;
+
   const TvTextField({
     super.key,
     required this.label,
     required this.value,
     required this.onChanged,
     required this.icon,
+    required this.onTap,
     this.obscure = false,
   });
-
-  void _open(BuildContext context) async {
-    final result = await showTvKeyboard(context, value, obscure: obscure);
-    if (result != null) {
-      onChanged(result);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +290,7 @@ class TvTextField extends StatelessWidget {
             (event.logicalKey == LogicalKeyboardKey.enter ||
                 event.logicalKey == LogicalKeyboardKey.select ||
                 event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
-          _open(context);
+          onTap();
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -309,7 +301,7 @@ class TvTextField extends StatelessWidget {
           final display =
               obscure && value.isNotEmpty ? '•' * value.length : value;
           return GestureDetector(
-            onTap: () => _open(context),
+            onTap: onTap,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               decoration: BoxDecoration(

@@ -31,6 +31,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isFormValid = false;
   bool _isLocalMode = false;
 
+  // TV/遥控：当前正在用屏幕键盘编辑的字段（null 表示未在编辑）
+  String? _editingField;
+
   // 点击计数器相关
   int _logoTapCount = 0;
   Timer? _tapTimer;
@@ -167,6 +170,30 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLocalMode ? '已切换到本地模式' : '已切换到服务器模式',
       const Color(0xFF27ae60),
     );
+  }
+
+  TextEditingController get _editingController {
+    switch (_editingField) {
+      case 'url':
+        return _urlController;
+      case 'username':
+        return _usernameController;
+      case 'password':
+        return _passwordController;
+      case 'subscription':
+        return _subscriptionUrlController;
+      default:
+        return _urlController;
+    }
+  }
+
+  void _openEditor(String field) {
+    setState(() => _editingField = field);
+  }
+
+  void _applyEditingValue(String v) {
+    _editingController.text = v;
+    _validateForm();
   }
 
   void _validateForm() {
@@ -904,32 +931,72 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // TV/遥控布局：不使用系统 IME，改用可聚焦的只读显示 + 屏幕键盘
+  // TV/遥控布局：不使用系统 IME，改用可聚焦的只读显示 + 屏幕键盘（覆盖层）
   Widget _buildTvLayout() {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 520),
-      padding: const EdgeInsets.symmetric(horizontal: 32.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return PopScope(
+      // 返回键统一由此处处理：编辑中则关闭屏幕键盘，否则退出应用。
+      // 键盘以覆盖层展示（非对话框路由），因此返回键不会因系统返回路由而退出应用。
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          if (_editingField != null) {
+            setState(() => _editingField = null);
+          } else {
+            SystemNavigator.pop();
+          }
+        }
+      },
+      child: Stack(
         children: [
-          // Selene 标题 - 可点击
-          GestureDetector(
-            onTap: _handleLogoTap,
-            child: Text(
-              'Selene',
-              style: FontUtils.sourceCodePro(
-                fontSize: 42,
-                fontWeight: FontWeight.w400,
-                color: const Color(0xFF2c3e50),
-                letterSpacing: 1.5,
-              ),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 520),
+            padding: const EdgeInsets.symmetric(horizontal: 32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Selene 标题 - 可点击
+                GestureDetector(
+                  onTap: _handleLogoTap,
+                  child: Text(
+                    'Selene',
+                    style: FontUtils.sourceCodePro(
+                      fontSize: 42,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF2c3e50),
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // 可聚焦的模式切换按钮
+                _buildModeToggle(),
+                const SizedBox(height: 28),
+                _isLocalMode ? _buildTvLocalModeForm() : _buildTvServerForm(),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          // 可聚焦的模式切换按钮
-          _buildModeToggle(),
-          const SizedBox(height: 28),
-          _isLocalMode ? _buildTvLocalModeForm() : _buildTvServerForm(),
+          if (_editingField != null)
+            Positioned.fill(
+              child: GestureDetector(
+                // 点击遮罩不关闭，避免误触；用返回键关闭
+                onTap: () {},
+                child: Container(
+                  color: Colors.black54,
+                  child: Center(
+                    child: TvKeyboard(
+                      initialValue: _editingController.text,
+                      obscure: _editingField == 'password',
+                      onChanged: _applyEditingValue,
+                      onDone: (v) {
+                        _applyEditingValue(v);
+                        setState(() => _editingField = null);
+                      },
+                      onCancel: () => setState(() => _editingField = null),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -943,6 +1010,7 @@ class _LoginScreenState extends State<LoginScreen> {
           label: '服务器地址',
           value: _urlController.text,
           icon: Icons.link,
+          onTap: () => _openEditor('url'),
           onChanged: (v) {
             _urlController.text = v;
             _validateForm();
@@ -953,6 +1021,7 @@ class _LoginScreenState extends State<LoginScreen> {
           label: '用户名',
           value: _usernameController.text,
           icon: Icons.person,
+          onTap: () => _openEditor('username'),
           onChanged: (v) {
             _usernameController.text = v;
             _validateForm();
@@ -964,6 +1033,7 @@ class _LoginScreenState extends State<LoginScreen> {
           value: _passwordController.text,
           icon: Icons.lock,
           obscure: true,
+          onTap: () => _openEditor('password'),
           onChanged: (v) {
             _passwordController.text = v;
             _validateForm();
@@ -983,6 +1053,7 @@ class _LoginScreenState extends State<LoginScreen> {
           label: '订阅链接',
           value: _subscriptionUrlController.text,
           icon: Icons.link,
+          onTap: () => _openEditor('subscription'),
           onChanged: (v) {
             _subscriptionUrlController.text = v;
             _validateForm();
