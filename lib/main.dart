@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'utils/device_utils.dart';
@@ -11,12 +12,25 @@ import 'services/douban_cache_service.dart';
 import 'services/local_mode_storage_service.dart';
 import 'services/subscription_service.dart';
 import 'dart:io' show Platform;
+import 'dart:ui' show PlatformDispatcher;
 import 'package:macos_window_utils/macos_window_utils.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 调试：将 Flutter 框架错误（构建/渲染异常）输出到 logcat，便于在 STB 上定位黑屏等无 UI 报错的问题
+  FlutterError.onError = (details) {
+    debugPrint('FLUTTER_ERROR: ${details.exceptionAsString()}');
+    debugPrint('FLUTTER_ERROR_STACK: ${details.stack.toString()}');
+    FlutterError.dumpErrorToConsole(details, forceReport: true);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('PLATFORM_ERROR: $error');
+    debugPrint('PLATFORM_ERROR_STACK: $stack');
+    return true;
+  };
 
   // 初始化 Android TV 检测（uiMode）
   await DeviceUtils.initTv();
@@ -111,9 +125,10 @@ class _AppWrapperState extends State<AppWrapper> {
 
   void _checkLoginStatus() async {
     try {
+      if (kDebugMode) debugPrint('CHECKLOGIN: start');
       // 检查是否是本地模式
       final isLocalMode = await UserDataService.getIsLocalMode();
-
+      if (kDebugMode) debugPrint('CHECKLOGIN: isLocalMode=$isLocalMode');
       if (isLocalMode) {
         // 本地模式：尝试刷新订阅内容
         try {
@@ -150,8 +165,10 @@ class _AppWrapperState extends State<AppWrapper> {
       }
 
       // 检查是否有自动登录所需的数据
+      if (kDebugMode) debugPrint('CHECKLOGIN: before hasAutoLoginData');
       final hasAutoLoginData = await UserDataService.hasAutoLoginData();
-
+      if (kDebugMode) debugPrint('CHECKLOGIN: hasAutoLoginData=$hasAutoLoginData');
+      if (kDebugMode) debugPrint('CHECKLOGIN: mounted=$mounted before setState');
       if (!hasAutoLoginData) {
         // 如果没有自动登录数据，直接进入登录页
         if (mounted) {
@@ -163,8 +180,9 @@ class _AppWrapperState extends State<AppWrapper> {
       }
 
       // 服务器模式：尝试自动登录
+      if (kDebugMode) debugPrint('CHECKLOGIN: before autoLogin');
       final loginResult = await ApiService.autoLogin();
-
+      if (kDebugMode) debugPrint('CHECKLOGIN: autoLogin success=${loginResult.success}');
       if (mounted) {
         if (loginResult.success) {
           // 自动登录成功，进入首页
@@ -180,6 +198,7 @@ class _AppWrapperState extends State<AppWrapper> {
       }
     } catch (e) {
       // 发生异常，进入登录页
+      if (kDebugMode) debugPrint('CHECKLOGIN: caught exception $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -190,6 +209,7 @@ class _AppWrapperState extends State<AppWrapper> {
 
   @override
   Widget build(BuildContext context) {
+    if (kDebugMode) debugPrint('APPWRAPPER: build _isLoading=$_isLoading');
     if (_isLoading) {
       return Consumer<ThemeService>(
         builder: (context, themeService, child) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -10,6 +11,7 @@ import '../services/subscription_service.dart';
 import '../utils/device_utils.dart';
 import '../utils/font_utils.dart';
 import '../widgets/tv_keyboard.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../widgets/windows_title_bar.dart';
 import 'home_screen.dart';
 
@@ -26,6 +28,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _subscriptionUrlController = TextEditingController();
+  // TV/遥控：服务器地址拆分为 协议/主机/端口（openemby_tv 风格）
+  String _protocol = 'http';
+  final _hostController = TextEditingController();
+  final _portController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isLoading = false;
   bool _isFormValid = false;
@@ -68,6 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (userData['serverUrl'] != null) {
       _urlController.text = userData['serverUrl']!;
+      _syncPartsFromUrl();
       hasData = true;
     }
     if (userData['username'] != null) {
@@ -101,6 +108,8 @@ class _LoginScreenState extends State<LoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     _subscriptionUrlController.dispose();
+    _hostController.dispose();
+    _portController.dispose();
     _tapTimer?.cancel();
     super.dispose();
   }
@@ -187,8 +196,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   TextEditingController get _editingController {
     switch (_editingField) {
-      case 'url':
-        return _urlController;
+      case 'host':
+        return _hostController;
+      case 'port':
+        return _portController;
       case 'username':
         return _usernameController;
       case 'password':
@@ -205,11 +216,13 @@ class _LoginScreenState extends State<LoginScreen> {
     _kbRow = 0;
     _kbCol = 0;
     _kbText = _editingController.text;
+    if (kDebugMode) debugPrint('TVKB: openEditor field=$field');
     setState(() => _editingField = field);
   }
 
   /// 返回键关闭键盘：记录时间戳，供 PopScope.onPopInvoked 判断是否为同一次返回
   void _handleEditorBack() {
+    if (kDebugMode) debugPrint('TVKB: handleEditorBack (close)');
     setState(() {
       _editingField = null;
       _editorClosedAt = DateTime.now();
@@ -219,7 +232,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _applyEditingValue(String v) {
     _editingController.text = v;
-    _validateForm();
+    if (_editingField == 'host' || _editingField == 'port') {
+      _syncUrlFromParts();
+    } else {
+      _validateForm();
+    }
   }
 
   /// 是否处于“正在编辑”或“刚刚（<700ms）因返回键关闭编辑”的状态。
@@ -234,9 +251,8 @@ class _LoginScreenState extends State<LoginScreen> {
   /// 返回 true 表示已消费该按键，阻止其继续冒泡到焦点系统/系统返回（避免退出应用）。
   /// 不编辑时返回 false，交由默认焦点遍历与各控件自身处理，不影响正常遥控导航。
   bool _handleHardwareKey(KeyEvent event) {
-    // TEMP DEBUG: disable handler to isolate black-screen cause
-    return false;
     if (!_editorConsumesBack) return false;
+    if (kDebugMode) debugPrint('TVKB: handleHardwareKey key=${event.logicalKey} down=${event is KeyDownEvent}');
     if (event is! KeyDownEvent) {
       // 即便非 KeyDown（如 KeyUp），只要处于可消费状态也吞掉，避免误触发系统返回
       return true;
@@ -291,6 +307,7 @@ class _LoginScreenState extends State<LoginScreen> {
   /// 在键盘网格上“按下”当前焦点按键
   void _activateKey() {
     final k = TvKeyboard.keyAt(_kbRow, _kbCol);
+    if (kDebugMode) debugPrint('TVKB: activateKey row=$_kbRow col=$_kbCol action=${k.action} value=${k.value}');
     switch (k.action) {
       case TvKeyAction.insert:
         _kbText += k.value!;
@@ -733,7 +750,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final isTablet = DeviceUtils.isTablet(context);
     final isTv = DeviceUtils.isTV();
-
+    if (kDebugMode) debugPrint('LOGIN: build isTv=$isTv isLocalMode=$_isLocalMode editingField=$_editingField');
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -1077,33 +1094,7 @@ class _LoginScreenState extends State<LoginScreen> {
             // 编辑中排除表单的焦点，确保遥控按键只作用于屏幕键盘
             ExcludeFocus(
               excluding: _editingField != null,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 520),
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Selene 标题 - 可点击
-                    GestureDetector(
-                      onTap: _handleLogoTap,
-                      child: Text(
-                        'Selene',
-                        style: FontUtils.sourceCodePro(
-                          fontSize: 42,
-                          fontWeight: FontWeight.w400,
-                          color: const Color(0xFF2c3e50),
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // 可聚焦的模式切换按钮
-                    _buildModeToggle(),
-                    const SizedBox(height: 28),
-                    _isLocalMode ? _buildTvLocalModeForm() : _buildTvServerForm(),
-                  ],
-                ),
-              ),
+              child: _buildTvTwoColumn(),
             ),
             if (_editingField != null)
               Positioned.fill(
@@ -1113,13 +1104,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Container(
                     color: Colors.black54,
                     child: Center(
-                      child: Container(
-                        width: 300,
-                        height: 200,
-                        color: Colors.red,
-                        child: const Center(
-                            child: Text('KEYBOARD',
-                                style: TextStyle(color: Colors.white, fontSize: 24))),
+                      child: TvKeyboard(
+                        text: _kbText,
+                        obscure: _editingField == 'password',
+                        row: _kbRow,
+                        col: _kbCol,
+                        onChanged: (v) => setState(() => _kbText = v),
+                        onDone: (_) {
+                          _applyEditingValue(_kbText);
+                          _editorClosedAt = null;
+                          setState(() => _editingField = null);
+                        },
+                        onCancel: _handleEditorBack,
                       ),
                     ),
                 ),
@@ -1130,47 +1126,205 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  /// TV/遥控：仿 openemby_tv 的两栏登录布局
+  /// 左栏：二维码 + 扫码提示 + 服务器地址；右栏：协议/主机/端口 + 用户名 + 密码 + 登录
+  Widget _buildTvTwoColumn() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(flex: 1, child: _buildTvLeftPanel()),
+        Expanded(flex: 1, child: _buildTvRightPanel()),
+      ],
+    );
+  }
+
+  /// 左栏：二维码登录区（白底圆角卡片）+ 扫码提示 + 服务器地址 + 页脚说明
+  Widget _buildTvLeftPanel() {
+    final serverUrl = _urlController.text;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: QrImageView(
+              data: serverUrl.isNotEmpty ? serverUrl : 'https://example.com',
+              size: 200,
+              backgroundColor: Colors.white,
+              errorStateBuilder: (c, err) => const Icon(Icons.qr_code,
+                  size: 80, color: Color(0xFF2c3e50)),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            '扫码登录',
+            style: FontUtils.poppins(
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF2c3e50),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '使用手机端 App 扫描上方二维码登录',
+            style: FontUtils.poppins(
+              fontSize: 14,
+              color: const Color(0xFF7f8c8d),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '服务器地址：${serverUrl.isEmpty ? '（未设置）' : serverUrl}',
+            style: FontUtils.poppins(
+              fontSize: 13,
+              color: const Color(0xFF7f8c8d),
+            ),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            '本地模式下请使用浏览器访问上方地址进行配置',
+            style: FontUtils.poppins(
+              fontSize: 12,
+              color: const Color(0xFFbdc3c7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 右栏：登录表单
+  Widget _buildTvRightPanel() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _isLocalMode ? _buildTvLocalModeForm() : _buildTvServerForm(),
+          const SizedBox(height: 20),
+          _buildModeToggle(),
+        ],
+      ),
+    );
+  }
+
+  /// 服务器模式表单：协议 + 主机 + 端口 一行，用户名、密码、登录按钮
   Widget _buildTvServerForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TvTextField(
-          label: '服务器地址',
-          value: _urlController.text,
-          icon: Icons.link,
-          onTap: () => _openEditor('url'),
-          onChanged: (v) {
-            _urlController.text = v;
-            _validateForm();
-          },
+        // 服务器地址行：协议切换 + 主机 + 端口
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildProtocolToggle(),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 3,
+              child: TvTextField(
+                label: '主机',
+                value: _hostController.text,
+                icon: Icons.computer,
+                onTap: () => _openEditor('host'),
+                onChanged: (v) => _hostController.text = v,
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 96,
+              child: TvTextField(
+                label: '端口',
+                value: _portController.text,
+                icon: Icons.numbers,
+                onTap: () => _openEditor('port'),
+                onChanged: (v) => _portController.text = v,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         TvTextField(
           label: '用户名',
           value: _usernameController.text,
           icon: Icons.person,
           onTap: () => _openEditor('username'),
-          onChanged: (v) {
-            _usernameController.text = v;
-            _validateForm();
-          },
+          onChanged: (v) => _usernameController.text = v,
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         TvTextField(
           label: '密码',
           value: _passwordController.text,
           icon: Icons.lock,
           obscure: true,
           onTap: () => _openEditor('password'),
-          onChanged: (v) {
-            _passwordController.text = v;
-            _validateForm();
-          },
+          onChanged: (v) => _passwordController.text = v,
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 28),
         _buildTvLoginButton(_handleLogin),
       ],
     );
+  }
+
+  /// 协议（http/https）切换按钮：OK 键或点击切换
+  Widget _buildProtocolToggle() {
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+          _toggleProtocol();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Builder(
+        builder: (context) {
+          final focused = Focus.of(context).hasFocus;
+          return GestureDetector(
+            onTap: _toggleProtocol,
+            child: Container(
+              width: 84,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: focused
+                      ? const Color(0xFF27ae60)
+                      : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  _protocol.toUpperCase(),
+                  style: FontUtils.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF2c3e50),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _toggleProtocol() {
+    setState(() {
+      _protocol = _protocol == 'http' ? 'https' : 'http';
+      _syncUrlFromParts();
+    });
   }
 
   Widget _buildTvLocalModeForm() {
@@ -1182,15 +1336,46 @@ class _LoginScreenState extends State<LoginScreen> {
           value: _subscriptionUrlController.text,
           icon: Icons.link,
           onTap: () => _openEditor('subscription'),
-          onChanged: (v) {
-            _subscriptionUrlController.text = v;
-            _validateForm();
-          },
+          onChanged: (v) => _subscriptionUrlController.text = v,
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 28),
         _buildTvLoginButton(_handleLocalModeLogin),
       ],
     );
+  }
+
+  // ---- 服务器地址解析：将 _urlController 拆分为 协议/主机/端口 ----
+  (String, String, String) _parseUrl(String url) {
+    if (url.isEmpty) return ('http', '', '');
+    try {
+      final uri = Uri.parse(url);
+      return (
+        uri.scheme.isNotEmpty ? uri.scheme : 'http',
+        uri.host,
+        uri.port > 0 ? uri.port.toString() : '',
+      );
+    } catch (_) {
+      return ('http', '', '');
+    }
+  }
+
+  String _buildUrl(String protocol, String host, String port) {
+    final h = host.trim();
+    if (h.isEmpty) return '';
+    return port.trim().isEmpty ? '$protocol://$h' : '$protocol://$h:${port.trim()}';
+  }
+
+  void _syncUrlFromParts() {
+    _urlController.text =
+        _buildUrl(_protocol, _hostController.text, _portController.text);
+    _validateForm();
+  }
+
+  void _syncPartsFromUrl() {
+    final parsed = _parseUrl(_urlController.text);
+    _protocol = parsed.$1;
+    _hostController.text = parsed.$2;
+    _portController.text = parsed.$3;
   }
 
   /// TV/遥控可聚焦的登录按钮：OK 键触发登录

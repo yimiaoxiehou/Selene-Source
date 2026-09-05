@@ -65,6 +65,7 @@ dependencies:
   gpt_markdown: ^1.1.4
   bs58check: ^1.0.2
   xml: ^6.5.0
+  qr_flutter: ^4.1.0
   intl: ^0.20.2
   pip: ^0.0.3
 
