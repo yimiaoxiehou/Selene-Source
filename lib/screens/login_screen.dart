@@ -55,6 +55,8 @@ class _LoginScreenState extends State<LoginScreen> {
     _usernameController.addListener(_validateForm);
     _passwordController.addListener(_validateForm);
     _subscriptionUrlController.addListener(_validateForm);
+    // 注册全局硬件按键 handler：编辑屏幕键盘时接管方向键/OK/返回键（不依赖焦点）
+    HardwareKeyboard.instance.addHandler(_handleHardwareKey);
     _loadSavedUserData();
   }
 
@@ -94,6 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     _urlController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
@@ -220,26 +223,30 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /// 是否处于“正在编辑”或“刚刚（<700ms）因返回键关闭编辑”的状态。
-  /// 在这两种状态下，返回键都应被登录页外层 Focus 消费，避免冒泡到根导致退出应用。
+  /// 在这两种状态下，返回键都应被全局硬件按键 handler 消费，避免冒泡到根导致退出应用。
   bool get _editorConsumesBack =>
       _editingField != null ||
       (_editorClosedAt != null &&
           DateTime.now().difference(_editorClosedAt!) <
               const Duration(milliseconds: 700));
 
-  /// 登录页外层 Focus 的按键处理：编辑中统一接管方向键/OK/返回键并驱动屏幕键盘。
-  /// 不编辑时对所有按键返回 ignored，交由默认焦点遍历/各控件自身处理，不干扰导航。
-  KeyEventResult _onLayoutKey(FocusNode node, KeyEvent event) {
-    if (!_editorConsumesBack) return KeyEventResult.ignored;
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+  /// 全局硬件按键 handler（不依赖焦点）：编辑中统一接管方向键/OK/返回键并驱动屏幕键盘；
+  /// 返回 true 表示已消费该按键，阻止其继续冒泡到焦点系统/系统返回（避免退出应用）。
+  /// 不编辑时返回 false，交由默认焦点遍历与各控件自身处理，不影响正常遥控导航。
+  bool _handleHardwareKey(KeyEvent event) {
+    if (!_editorConsumesBack) return false;
+    if (event is! KeyDownEvent) {
+      // 即便非 KeyDown（如 KeyUp），只要处于可消费状态也吞掉，避免误触发系统返回
+      return true;
+    }
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowLeft) {
       if (_kbCol > 0) setState(() => _kbCol--);
-      return KeyEventResult.handled;
+      return true;
     }
     if (key == LogicalKeyboardKey.arrowRight) {
       if (_kbCol < TvKeyboard.colCount(_kbRow) - 1) setState(() => _kbCol++);
-      return KeyEventResult.handled;
+      return true;
     }
     if (key == LogicalKeyboardKey.arrowUp) {
       if (_kbRow > 0) {
@@ -250,7 +257,7 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         });
       }
-      return KeyEventResult.handled;
+      return true;
     }
     if (key == LogicalKeyboardKey.arrowDown) {
       if (_kbRow < TvKeyboard.rowCount - 1) {
@@ -261,22 +268,22 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         });
       }
-      return KeyEventResult.handled;
+      return true;
     }
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.numpadEnter) {
       _activateKey();
-      return KeyEventResult.handled;
+      return true;
     }
-    // 返回键：必须在此消费并返回 handled，否则会冒泡到 MaterialApp 触发
+    // 返回键：必须在此消费并返回 true，否则会冒泡到 MaterialApp 触发
     // SystemNavigator.pop 退出应用。PopScope(onPopInvoked) 负责拦截“系统返回路由”
     // 通道，与这里形成双保险。
     if (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.goBack) {
       _handleEditorBack();
-      return KeyEventResult.handled;
+      return true;
     }
-    return KeyEventResult.ignored;
+    return true;
   }
 
   /// 在键盘网格上“按下”当前焦点按键
@@ -1060,12 +1067,11 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
       },
-      // 外层 Focus：编辑中统一接管方向键/OK/返回键驱动屏幕键盘；不编辑时对所有按键
-      // 返回 ignored，交由默认焦点遍历与控件自身处理，不影响正常遥控导航。
-      child: Focus(
-        onKeyEvent: _onLayoutKey,
-        child: Stack(
-          children: [
+      // 编辑中返回键/遥控按键由全局 HardwareKeyboard handler 统一接管（见
+      // _handleHardwareKey），该 handler 不依赖焦点，可彻底避免 Android TV 上焦点
+      // 拿不到、按键冒泡退出应用的问题。这里仅用 ExcludeFocus 做视觉/辅助隔离。
+      child: Stack(
+        children: [
             // 编辑中排除表单的焦点，确保遥控按键只作用于屏幕键盘
             ExcludeFocus(
               excluding: _editingField != null,
@@ -1123,7 +1129,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
         ],
-      ),
       ),
     );
   }
