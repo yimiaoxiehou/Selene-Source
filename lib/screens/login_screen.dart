@@ -968,31 +968,35 @@ class _LoginScreenState extends State<LoginScreen> {
       },
       child: Stack(
         children: [
-          Container(
-            constraints: const BoxConstraints(maxWidth: 520),
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Selene 标题 - 可点击
-                GestureDetector(
-                  onTap: _handleLogoTap,
-                  child: Text(
-                    'Selene',
-                    style: FontUtils.sourceCodePro(
-                      fontSize: 42,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFF2c3e50),
-                      letterSpacing: 1.5,
+          // 编辑中排除表单的焦点，确保遥控按键只作用于屏幕键盘
+          ExcludeFocus(
+            excluding: _editingField != null,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 520),
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Selene 标题 - 可点击
+                  GestureDetector(
+                    onTap: _handleLogoTap,
+                    child: Text(
+                      'Selene',
+                      style: FontUtils.sourceCodePro(
+                        fontSize: 42,
+                        fontWeight: FontWeight.w400,
+                        color: const Color(0xFF2c3e50),
+                        letterSpacing: 1.5,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                // 可聚焦的模式切换按钮
-                _buildModeToggle(),
-                const SizedBox(height: 28),
-                _isLocalMode ? _buildTvLocalModeForm() : _buildTvServerForm(),
-              ],
+                  const SizedBox(height: 12),
+                  // 可聚焦的模式切换按钮
+                  _buildModeToggle(),
+                  const SizedBox(height: 28),
+                  _isLocalMode ? _buildTvLocalModeForm() : _buildTvServerForm(),
+                ],
+              ),
             ),
           ),
           if (_editingField != null)

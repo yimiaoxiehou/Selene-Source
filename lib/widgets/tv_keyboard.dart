@@ -50,6 +50,7 @@ class _TvKeyboardState extends State<TvKeyboard> {
   late String _text;
   int _row = 0;
   int _col = 0;
+  final FocusNode _focusNode = FocusNode();
 
   static final List<List<_TvKey>> _rows = [
     for (final s in const [
@@ -77,6 +78,16 @@ class _TvKeyboardState extends State<TvKeyboard> {
   void initState() {
     super.initState();
     _text = widget.initialValue;
+    // 确保键盘挂载后获得焦点，使方向键/OK 作用于键盘而非下层输入框
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
   }
 
   void _moveLeft() {
@@ -231,6 +242,7 @@ class _TvKeyboardState extends State<TvKeyboard> {
           const SizedBox(height: 16),
           // 键盘网格
           Focus(
+            focusNode: _focusNode,
             autofocus: true,
             onKeyEvent: _onKey,
             child: Column(
