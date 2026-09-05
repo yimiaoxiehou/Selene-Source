@@ -156,7 +156,13 @@ class _TvKeyboardState extends State<TvKeyboard> {
       _activate();
       return KeyEventResult.handled;
     }
-    // 返回键交由外层 PopScope 统一处理（关闭覆盖层），此处不消费，避免重复关闭
+    // 返回键：Android TV 上 BACK 以 KeyEvent(goBack/escape) 形式到达，
+    // 必须在此消费并返回 handled，否则会冒泡到 MaterialApp 触发 SystemNavigator.pop 退出应用。
+    // 外层登录页的 PopScope(canPop:false) 负责拦截“系统返回路由”通道，双重保险。
+    if (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.goBack) {
+      widget.onCancel();
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
   }
 
