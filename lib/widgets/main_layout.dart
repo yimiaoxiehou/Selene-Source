@@ -1029,7 +1029,6 @@ class _MainLayoutState extends State<MainLayout> {
             if (isTablet) const Spacer(flex: 3),
           ],
         ),
-      ),
     );
   }
 }
