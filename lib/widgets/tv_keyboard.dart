@@ -3,26 +3,31 @@ import 'package:flutter/services.dart';
 
 import '../utils/font_utils.dart';
 
-/// TV/遥控器专用的屏幕键盘按键
-class _TvKey {
+/// TV/遥控器专用屏幕键盘的按键模型（公开，供调用方做焦点调度/裁剪）
+class TvKey {
   final String label;
   final String? value;
-  final _TvKeyAction action;
-  const _TvKey(this.label, this.action, [this.value]);
+  final TvKeyAction action;
+  const TvKey(this.label, this.action, [this.value]);
 }
 
-enum _TvKeyAction { insert, backspace, space, clear, done }
+enum TvKeyAction { insert, backspace, space, clear, done }
 
-/// TV/遥控器专用屏幕键盘：用方向键移动焦点，OK 键输入，返回键关闭
+/// TV/遥控器专用屏幕键盘（纯展示组件）
 ///
-/// 不使用系统 IME，避免 Android TV 上聚焦输入框时系统键盘抢占 D-pad 焦点、
-/// 导致遥控器无法在输入框/按钮之间移动且无法退出输入模式的问题。
+/// 不再内置 Focus 与状态：方向键/OK/返回键统一由上层（登录页的 Focus）驱动，
+/// 通过 [row]/[col]/[text] 参数渲染当前焦点与已输入内容。这样可避免 Android TV 上
+/// 键盘挂载/ExcludeFocus 时机导致的“焦点拿不到、按键冒泡退出应用”的问题。
 ///
-/// 以回调方式工作（[onChanged]/[onDone]/[onCancel]），由调用方以“覆盖层”而非
-/// 对话框路由的形式展示，从而让返回键只关闭键盘、不会因系统返回路由而退出应用。
-class TvKeyboard extends StatefulWidget {
-  final String initialValue;
+/// 不使用系统 IME，避免聚焦输入框时系统键盘抢占 D-pad 焦点、导致遥控器无法在
+/// 输入框/按钮之间移动且无法退出输入模式。
+class TvKeyboard extends StatelessWidget {
+  final String text;
   final bool obscure;
+
+  /// 当前焦点行/列（由调用方维护）
+  final int row;
+  final int col;
 
   /// 每次输入变化时的实时回调（用于同步回填到对应输入框）
   final ValueChanged<String> onChanged;
@@ -35,150 +40,44 @@ class TvKeyboard extends StatefulWidget {
 
   const TvKeyboard({
     super.key,
-    required this.initialValue,
+    required this.text,
     this.obscure = false,
+    required this.row,
+    required this.col,
     required this.onChanged,
     required this.onDone,
     required this.onCancel,
   });
 
-  @override
-  State<TvKeyboard> createState() => _TvKeyboardState();
-}
-
-class _TvKeyboardState extends State<TvKeyboard> {
-  late String _text;
-  int _row = 0;
-  int _col = 0;
-  final FocusNode _focusNode = FocusNode();
-
-  static final List<List<_TvKey>> _rows = [
+  /// 键盘按键布局（最后一行含空格/退格/清空/完成）
+  static final List<List<TvKey>> rows = [
     for (final s in const [
       '1234567890',
       'qwertyuiop',
       'asdfghjkl',
       'zxcvbnm',
     ])
-      [for (final c in s.split('')) _TvKey(c, _TvKeyAction.insert, c)],
+      [for (final c in s.split('')) TvKey(c, TvKeyAction.insert, c)],
     [
-      const _TvKey('-', _TvKeyAction.insert, '-'),
-      const _TvKey('_', _TvKeyAction.insert, '_'),
-      const _TvKey('.', _TvKeyAction.insert, '.'),
-      const _TvKey('@', _TvKeyAction.insert, '@'),
-      const _TvKey(':', _TvKeyAction.insert, ':'),
-      const _TvKey('/', _TvKeyAction.insert, '/'),
-      const _TvKey('空格', _TvKeyAction.space),
-      const _TvKey('⌫', _TvKeyAction.backspace),
-      const _TvKey('清空', _TvKeyAction.clear),
-      const _TvKey('完成', _TvKeyAction.done),
+      const TvKey('-', TvKeyAction.insert, '-'),
+      const TvKey('_', TvKeyAction.insert, '_'),
+      const TvKey('.', TvKeyAction.insert, '.'),
+      const TvKey('@', TvKeyAction.insert, '@'),
+      const TvKey(':', TvKeyAction.insert, ':'),
+      const TvKey('/', TvKeyAction.insert, '/'),
+      const TvKey('空格', TvKeyAction.space),
+      const TvKey('⌫', TvKeyAction.backspace),
+      const TvKey('清空', TvKeyAction.clear),
+      const TvKey('完成', TvKeyAction.done),
     ],
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _text = widget.initialValue;
-    // 确保键盘挂载后获得焦点，使方向键/OK 作用于键盘而非下层输入框
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focusNode.requestFocus();
-    });
-  }
+  static int get rowCount => rows.length;
+  static int colCount(int r) => rows[r].length;
+  static TvKey keyAt(int r, int c) => rows[r][c];
 
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  void _moveLeft() {
-    if (_col > 0) setState(() => _col--);
-  }
-
-  void _moveRight() {
-    if (_col < _rows[_row].length - 1) setState(() => _col++);
-  }
-
-  void _moveUp() {
-    if (_row > 0) {
-      setState(() {
-        _row--;
-        if (_col > _rows[_row].length - 1) _col = _rows[_row].length - 1;
-      });
-    }
-  }
-
-  void _moveDown() {
-    if (_row < _rows.length - 1) {
-      setState(() {
-        _row++;
-        if (_col > _rows[_row].length - 1) _col = _rows[_row].length - 1;
-      });
-    }
-  }
-
-  void _commit() {
-    widget.onChanged(_text);
-  }
-
-  void _activate() {
-    final k = _rows[_row][_col];
-    switch (k.action) {
-      case _TvKeyAction.insert:
-        setState(() => _text += k.value!);
-        _commit();
-      case _TvKeyAction.space:
-        setState(() => _text += ' ');
-        _commit();
-      case _TvKeyAction.backspace:
-        setState(() {
-          if (_text.isNotEmpty) _text = _text.substring(0, _text.length - 1);
-        });
-        _commit();
-      case _TvKeyAction.clear:
-        setState(() => _text = '');
-        _commit();
-      case _TvKeyAction.done:
-        widget.onDone(_text);
-    }
-  }
-
-  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.arrowLeft) {
-      _moveLeft();
-      return KeyEventResult.handled;
-    }
-    if (key == LogicalKeyboardKey.arrowRight) {
-      _moveRight();
-      return KeyEventResult.handled;
-    }
-    if (key == LogicalKeyboardKey.arrowUp) {
-      _moveUp();
-      return KeyEventResult.handled;
-    }
-    if (key == LogicalKeyboardKey.arrowDown) {
-      _moveDown();
-      return KeyEventResult.handled;
-    }
-    if (key == LogicalKeyboardKey.enter ||
-        key == LogicalKeyboardKey.select ||
-        key == LogicalKeyboardKey.numpadEnter) {
-      _activate();
-      return KeyEventResult.handled;
-    }
-    // 返回键：Android TV 上 BACK 以 KeyEvent(goBack/escape) 形式到达，
-    // 必须在此消费并返回 handled，否则会冒泡到 MaterialApp 触发 SystemNavigator.pop 退出应用。
-    // 外层登录页的 PopScope(canPop:false) 负责拦截“系统返回路由”通道，双重保险。
-    if (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.goBack) {
-      widget.onCancel();
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
-  }
-
-  Widget _buildKey(_TvKey k, bool active) {
-    final isDone = k.action == _TvKeyAction.done;
+  Widget _buildKey(TvKey k, bool active) {
+    final isDone = k.action == TvKeyAction.done;
     return Container(
       margin: const EdgeInsets.all(3),
       decoration: BoxDecoration(
@@ -208,8 +107,7 @@ class _TvKeyboardState extends State<TvKeyboard> {
 
   @override
   Widget build(BuildContext context) {
-    final display =
-        widget.obscure && _text.isNotEmpty ? '•' * _text.length : _text;
+    final display = obscure && text.isNotEmpty ? '•' * text.length : text;
     return Container(
       width: 640,
       padding: const EdgeInsets.all(20),
@@ -240,28 +138,22 @@ class _TvKeyboardState extends State<TvKeyboard> {
             ),
           ),
           const SizedBox(height: 16),
-          // 键盘网格
-          Focus(
-            focusNode: _focusNode,
-            autofocus: true,
-            onKeyEvent: _onKey,
-            child: Column(
-              children: [
-                for (int r = 0; r < _rows.length; r++)
-                  Row(
-                    children: [
-                      for (int c = 0; c < _rows[r].length; c++)
-                        Expanded(
-                          child: AspectRatio(
-                            aspectRatio: 1,
-                            child:
-                                _buildKey(_rows[r][c], r == _row && c == _col),
-                          ),
+          // 键盘网格（焦点由上层 Focus 驱动，这里仅展示）
+          Column(
+            children: [
+              for (int r = 0; r < rows.length; r++)
+                Row(
+                  children: [
+                    for (int c = 0; c < rows[r].length; c++)
+                      Expanded(
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: _buildKey(rows[r][c], r == row && c == col),
                         ),
-                    ],
-                  ),
-              ],
-            ),
+                      ),
+                  ],
+                ),
+            ],
           ),
           const SizedBox(height: 10),
           Text(

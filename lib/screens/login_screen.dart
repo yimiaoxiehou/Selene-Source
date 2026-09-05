@@ -38,6 +38,12 @@ class _LoginScreenState extends State<LoginScreen> {
   // 与“另一次返回按键”，避免关闭键盘后紧跟着被系统返回退出应用。
   DateTime? _editorClosedAt;
 
+  // TV/遥控：屏幕键盘的当前焦点行列与已输入内容（由登录页外层 Focus 统一驱动，
+  // 不再依赖键盘内部 Focus，从而规避 Android TV 上焦点拿不到、按键冒泡退出应用的问题）
+  int _kbRow = 0;
+  int _kbCol = 0;
+  String _kbText = '';
+
   // 点击计数器相关
   int _logoTapCount = 0;
   Timer? _tapTimer;
@@ -193,6 +199,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _openEditor(String field) {
     _editorClosedAt = null;
+    _kbRow = 0;
+    _kbCol = 0;
+    _kbText = _editingController.text;
     setState(() => _editingField = field);
   }
 
@@ -208,6 +217,89 @@ class _LoginScreenState extends State<LoginScreen> {
   void _applyEditingValue(String v) {
     _editingController.text = v;
     _validateForm();
+  }
+
+  /// 是否处于“正在编辑”或“刚刚（<700ms）因返回键关闭编辑”的状态。
+  /// 在这两种状态下，返回键都应被登录页外层 Focus 消费，避免冒泡到根导致退出应用。
+  bool get _editorConsumesBack =>
+      _editingField != null ||
+      (_editorClosedAt != null &&
+          DateTime.now().difference(_editorClosedAt!) <
+              const Duration(milliseconds: 700));
+
+  /// 登录页外层 Focus 的按键处理：编辑中统一接管方向键/OK/返回键并驱动屏幕键盘。
+  /// 不编辑时对所有按键返回 ignored，交由默认焦点遍历/各控件自身处理，不干扰导航。
+  KeyEventResult _onLayoutKey(FocusNode node, KeyEvent event) {
+    if (!_editorConsumesBack) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      if (_kbCol > 0) setState(() => _kbCol--);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowRight) {
+      if (_kbCol < TvKeyboard.colCount(_kbRow) - 1) setState(() => _kbCol++);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      if (_kbRow > 0) {
+        setState(() {
+          _kbRow--;
+          if (_kbCol > TvKeyboard.colCount(_kbRow) - 1) {
+            _kbCol = TvKeyboard.colCount(_kbRow) - 1;
+          }
+        });
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowDown) {
+      if (_kbRow < TvKeyboard.rowCount - 1) {
+        setState(() {
+          _kbRow++;
+          if (_kbCol > TvKeyboard.colCount(_kbRow) - 1) {
+            _kbCol = TvKeyboard.colCount(_kbRow) - 1;
+          }
+        });
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      _activateKey();
+      return KeyEventResult.handled;
+    }
+    // 返回键：必须在此消费并返回 handled，否则会冒泡到 MaterialApp 触发
+    // SystemNavigator.pop 退出应用。PopScope(onPopInvoked) 负责拦截“系统返回路由”
+    // 通道，与这里形成双保险。
+    if (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.goBack) {
+      _handleEditorBack();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  /// 在键盘网格上“按下”当前焦点按键
+  void _activateKey() {
+    final k = TvKeyboard.keyAt(_kbRow, _kbCol);
+    switch (k.action) {
+      case TvKeyAction.insert:
+        _kbText += k.value!;
+      case TvKeyAction.space:
+        _kbText += ' ';
+      case TvKeyAction.backspace:
+        if (_kbText.isNotEmpty) {
+          _kbText = _kbText.substring(0, _kbText.length - 1);
+        }
+      case TvKeyAction.clear:
+        _kbText = '';
+      case TvKeyAction.done:
+        _applyEditingValue(_kbText);
+        _editorClosedAt = null;
+        setState(() => _editingField = null);
+        return;
+    }
+    _applyEditingValue(_kbText);
   }
 
   void _validateForm() {
@@ -955,7 +1047,9 @@ class _LoginScreenState extends State<LoginScreen> {
         if (!didPop) {
           final DateTime? closedAt = _editorClosedAt;
           if (_editingField != null) {
-            // 系统返回通道关闭键盘（KeyEvent 通道未处理时）
+            // 系统返回通道关闭键盘（KeyEvent 通道未处理时）。记录时间戳，
+            // 以便紧随其后的 goBack/escape KeyEvent 仍被外层 Focus 消费，不退出应用。
+            _editorClosedAt = DateTime.now();
             setState(() => _editingField = null);
           } else if (closedAt != null &&
               DateTime.now().difference(closedAt) <
@@ -966,63 +1060,70 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
       },
-      child: Stack(
-        children: [
-          // 编辑中排除表单的焦点，确保遥控按键只作用于屏幕键盘
-          ExcludeFocus(
-            excluding: _editingField != null,
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 520),
-              padding: const EdgeInsets.symmetric(horizontal: 32.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Selene 标题 - 可点击
-                  GestureDetector(
-                    onTap: _handleLogoTap,
-                    child: Text(
-                      'Selene',
-                      style: FontUtils.sourceCodePro(
-                        fontSize: 42,
-                        fontWeight: FontWeight.w400,
-                        color: const Color(0xFF2c3e50),
-                        letterSpacing: 1.5,
+      // 外层 Focus：编辑中统一接管方向键/OK/返回键驱动屏幕键盘；不编辑时对所有按键
+      // 返回 ignored，交由默认焦点遍历与控件自身处理，不影响正常遥控导航。
+      child: Focus(
+        onKeyEvent: _onLayoutKey,
+        child: Stack(
+          children: [
+            // 编辑中排除表单的焦点，确保遥控按键只作用于屏幕键盘
+            ExcludeFocus(
+              excluding: _editingField != null,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 520),
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Selene 标题 - 可点击
+                    GestureDetector(
+                      onTap: _handleLogoTap,
+                      child: Text(
+                        'Selene',
+                        style: FontUtils.sourceCodePro(
+                          fontSize: 42,
+                          fontWeight: FontWeight.w400,
+                          color: const Color(0xFF2c3e50),
+                          letterSpacing: 1.5,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  // 可聚焦的模式切换按钮
-                  _buildModeToggle(),
-                  const SizedBox(height: 28),
-                  _isLocalMode ? _buildTvLocalModeForm() : _buildTvServerForm(),
-                ],
+                    const SizedBox(height: 12),
+                    // 可聚焦的模式切换按钮
+                    _buildModeToggle(),
+                    const SizedBox(height: 28),
+                    _isLocalMode ? _buildTvLocalModeForm() : _buildTvServerForm(),
+                  ],
+                ),
               ),
             ),
-          ),
-          if (_editingField != null)
-            Positioned.fill(
-              child: GestureDetector(
-                // 点击遮罩不关闭，避免误触；用返回键关闭
-                onTap: () {},
-                child: Container(
-                  color: Colors.black54,
-                  child: Center(
-                    child: TvKeyboard(
-                      initialValue: _editingController.text,
-                      obscure: _editingField == 'password',
-                      onChanged: _applyEditingValue,
-                      onDone: (v) {
-                        _applyEditingValue(v);
-                        _editorClosedAt = null;
-                        setState(() => _editingField = null);
-                      },
-                      onCancel: _handleEditorBack,
+            if (_editingField != null)
+              Positioned.fill(
+                child: GestureDetector(
+                  // 点击遮罩不关闭，避免误触；用返回键关闭
+                  onTap: () {},
+                  child: Container(
+                    color: Colors.black54,
+                    child: Center(
+                      child: TvKeyboard(
+                        text: _kbText,
+                        obscure: _editingField == 'password',
+                        row: _kbRow,
+                        col: _kbCol,
+                        onChanged: _applyEditingValue,
+                        onDone: (v) {
+                          _applyEditingValue(v);
+                          _editorClosedAt = null;
+                          setState(() => _editingField = null);
+                        },
+                        onCancel: _handleEditorBack,
+                      ),
                     ),
-                  ),
                 ),
               ),
             ),
         ],
+      ),
       ),
     );
   }
