@@ -1113,18 +1113,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Container(
                     color: Colors.black54,
                     child: Center(
-                      child: TvKeyboard(
-                        text: _kbText,
-                        obscure: _editingField == 'password',
-                        row: _kbRow,
-                        col: _kbCol,
-                        onChanged: _applyEditingValue,
-                        onDone: (v) {
-                          _applyEditingValue(v);
-                          _editorClosedAt = null;
-                          setState(() => _editingField = null);
-                        },
-                        onCancel: _handleEditorBack,
+                      child: Container(
+                        width: 300,
+                        height: 200,
+                        color: Colors.red,
+                        child: const Center(
+                            child: Text('KEYBOARD',
+                                style: TextStyle(color: Colors.white, fontSize: 24))),
                       ),
                     ),
                 ),
