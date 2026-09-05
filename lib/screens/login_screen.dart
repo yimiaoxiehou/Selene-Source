@@ -34,6 +34,10 @@ class _LoginScreenState extends State<LoginScreen> {
   // TV/遥控：当前正在用屏幕键盘编辑的字段（null 表示未在编辑）
   String? _editingField;
 
+  // 最近一次因返回键关闭键盘的时间戳，用于区分“同一次返回按键的系统返回通道”
+  // 与“另一次返回按键”，避免关闭键盘后紧跟着被系统返回退出应用。
+  DateTime? _editorClosedAt;
+
   // 点击计数器相关
   int _logoTapCount = 0;
   Timer? _tapTimer;
@@ -188,7 +192,17 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _openEditor(String field) {
+    _editorClosedAt = null;
     setState(() => _editingField = field);
+  }
+
+  /// 返回键关闭键盘：记录时间戳，供 PopScope.onPopInvoked 判断是否为同一次返回
+  void _handleEditorBack() {
+    setState(() {
+      _editingField = null;
+      _editorClosedAt = DateTime.now();
+    });
+    _validateForm();
   }
 
   void _applyEditingValue(String v) {
@@ -940,7 +954,12 @@ class _LoginScreenState extends State<LoginScreen> {
       onPopInvoked: (didPop) {
         if (!didPop) {
           if (_editingField != null) {
+            // 系统返回通道关闭键盘（KeyEvent 通道未处理时）
             setState(() => _editingField = null);
+          } else if (_editorClosedAt != null &&
+              DateTime.now().difference(_editorClosedAt) <
+                  const Duration(milliseconds: 700)) {
+            // 同一次返回按键已由 KeyEvent 通道关闭键盘，忽略系统返回，不退出
           } else {
             SystemNavigator.pop();
           }
@@ -989,9 +1008,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       onChanged: _applyEditingValue,
                       onDone: (v) {
                         _applyEditingValue(v);
+                        _editorClosedAt = null;
                         setState(() => _editingField = null);
                       },
-                      onCancel: () => setState(() => _editingField = null),
+                      onCancel: _handleEditorBack,
                     ),
                   ),
                 ),
