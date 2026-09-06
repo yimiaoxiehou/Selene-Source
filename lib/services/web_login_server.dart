@@ -147,40 +147,40 @@ class WebLoginServer {
 </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Selene 登录配置</h1>
-    <p class="sub">在与电视同一 Wi-Fi 下填写，提交后电视将自动登录。</p>
-    <div class="modes">
-      <label id="lbl-server" class="$serverChecked active"><input type="radio" name="mode" value="server" $serverChecked onchange="switchMode()">服务器模式</label>
-      <label id="lbl-local" class="$localChecked"><input type="radio" name="mode" value="local" $localChecked onchange="switchMode()">本地模式</label>
-    </div>
-
-    <div id="sec-server" class="sec ${serverChecked.isNotEmpty ? 'show' : ''}">
-      <label>服务器地址</label>
-      <div class="row">
-        <select name="protocol">
-          <option value="http" ${protocol == 'http' ? 'selected' : ''}>http</option>
-          <option value="https" ${protocol == 'https' ? 'selected' : ''}>https</option>
-        </select>
-        <input name="host" placeholder="主机 / IP" value="$host">
+  <form id="f" method="post" action="/">
+    <div class="card">
+      <h1>Selene 登录配置</h1>
+      <p class="sub">在与电视同一 Wi-Fi 下填写，提交后电视将自动登录。</p>
+      <div class="modes">
+        <label id="lbl-server" class="$serverChecked active"><input type="radio" name="mode" value="server" $serverChecked onchange="switchMode()">服务器模式</label>
+        <label id="lbl-local" class="$localChecked"><input type="radio" name="mode" value="local" $localChecked onchange="switchMode()">本地模式</label>
       </div>
-      <label>端口</label>
-      <input name="port" placeholder="端口，如 8096" value="$port">
-      <label>用户名</label>
-      <input name="username" placeholder="用户名" value="$username" autocomplete="username">
-      <label>密码</label>
-      <input name="password" type="password" placeholder="密码" value="$password" autocomplete="current-password">
+
+      <div id="sec-server" class="sec ${serverChecked.isNotEmpty ? 'show' : ''}">
+        <label>服务器地址</label>
+        <div class="row">
+          <select name="protocol">
+            <option value="http" ${protocol == 'http' ? 'selected' : ''}>http</option>
+            <option value="https" ${protocol == 'https' ? 'selected' : ''}>https</option>
+          </select>
+          <input name="host" placeholder="主机 / IP" value="$host">
+        </div>
+        <label>端口</label>
+        <input name="port" placeholder="端口，如 8096" value="$port">
+        <label>用户名</label>
+        <input name="username" placeholder="用户名" value="$username" autocomplete="username">
+        <label>密码</label>
+        <input name="password" type="password" placeholder="密码" value="$password" autocomplete="current-password">
+      </div>
+
+      <div id="sec-local" class="sec $localChecked">
+        <label>订阅链接</label>
+        <input name="subscriptionUrl" placeholder="https://.../sub" value="$subscription">
+      </div>
+
+      <button type="submit">提交并登录</button>
     </div>
-
-    <div id="sec-local" class="sec $localChecked">
-      <label>订阅链接</label>
-      <input name="subscriptionUrl" placeholder="https://.../sub" value="$subscription">
-    </div>
-
-    <button type="submit" form="f">提交并登录</button>
-  </div>
-
-  <form id="f" method="post" action="/"></form>
+  </form>
   <script>
     function switchMode() {
       var m = document.querySelector('input[name=mode]:checked').value;
