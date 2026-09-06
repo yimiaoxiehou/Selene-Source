@@ -8,6 +8,7 @@ import 'dart:async';
 import '../services/user_data_service.dart';
 import '../services/local_mode_storage_service.dart';
 import '../services/subscription_service.dart';
+import '../services/web_login_server.dart';
 import '../utils/device_utils.dart';
 import '../utils/font_utils.dart';
 import '../widgets/tv_keyboard.dart';
@@ -37,6 +38,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isFormValid = false;
   bool _isLocalMode = false;
 
+  // 内置局域网 Web Server 的 LAN IP（启动后置位，用于左栏展示手机访问地址）
+  String? _webIp;
+
   // TV/遥控：当前正在用屏幕键盘编辑的字段（null 表示未在编辑）
   String? _editingField;
 
@@ -64,6 +68,13 @@ class _LoginScreenState extends State<LoginScreen> {
     // 注册全局硬件按键 handler：编辑屏幕键盘时接管方向键/OK/返回键（不依赖焦点）
     HardwareKeyboard.instance.addHandler(_handleHardwareKey);
     _loadSavedUserData();
+    // 启动内置局域网 Web Server：手机浏览器可填写登录信息
+    WebLoginServer.start(
+      onSubmit: _handleWebSubmit,
+      getDefaults: _webDefaults,
+    ).then((ip) {
+      if (mounted) setState(() => _webIp = ip);
+    });
   }
 
   void _loadSavedUserData() async {
@@ -104,6 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
+    WebLoginServer.stop();
     _urlController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
@@ -523,6 +535,38 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
+  /// 手机浏览器提交后，把表单字段写入对应控制器并走与遥控器一致的登录流程
+  void _handleWebSubmit(Map<String, String> f) {
+    if (!mounted) return;
+    final mode = f['mode'] ?? 'server';
+    if (mode == 'local') {
+      setState(() => _isLocalMode = true);
+      _subscriptionUrlController.text = f['subscriptionUrl'] ?? '';
+      _validateForm();
+      _handleLocalModeLogin();
+    } else {
+      _protocol = f['protocol'] ?? 'http';
+      _hostController.text = f['host'] ?? '';
+      _portController.text = f['port'] ?? '';
+      _syncUrlFromParts();
+      _usernameController.text = f['username'] ?? '';
+      _passwordController.text = f['password'] ?? '';
+      _validateForm();
+      _handleLogin();
+    }
+  }
+
+  /// 供 Web 表单预填：返回当前 App 中的配置
+  Map<String, String> _webDefaults() => {
+        'mode': _isLocalMode ? 'local' : 'server',
+        'protocol': _protocol,
+        'host': _hostController.text,
+        'port': _portController.text,
+        'username': _usernameController.text,
+        'password': _passwordController.text,
+        'subscriptionUrl': _subscriptionUrlController.text,
+      };
 
   void _handleLogin() async {
     if ((_formKey.currentState?.validate() ?? true) && _isFormValid) {
@@ -1141,6 +1185,10 @@ class _LoginScreenState extends State<LoginScreen> {
   /// 左栏：二维码登录区（白底圆角卡片）+ 扫码提示 + 服务器地址 + 页脚说明
   Widget _buildTvLeftPanel() {
     final serverUrl = _urlController.text;
+    // 二维码编码“手机浏览器登录页”地址：扫码即用手机浏览器打开 8080 网页填表
+    final webUrl = _webIp != null
+        ? 'http://$_webIp:${WebLoginServer.port}'
+        : '';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       child: Column(
@@ -1154,7 +1202,7 @@ class _LoginScreenState extends State<LoginScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: QrImageView(
-              data: serverUrl.isNotEmpty ? serverUrl : 'https://example.com',
+              data: webUrl.isNotEmpty ? webUrl : 'https://example.com',
               size: 200,
               backgroundColor: Colors.white,
               errorStateBuilder: (c, err) => const Icon(Icons.qr_code,
@@ -1172,7 +1220,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '使用手机端 App 扫描上方二维码登录',
+            '手机扫描上方二维码，用浏览器打开登录页填写信息',
             style: FontUtils.poppins(
               fontSize: 14,
               color: const Color(0xFF7f8c8d),
@@ -1187,8 +1235,39 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
           const SizedBox(height: 32),
+          if (_webIp != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFeafaf1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '手机浏览器输入登录信息：',
+                    style: FontUtils.poppins(
+                      fontSize: 13,
+                      color: const Color(0xFF27ae60),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'http://$_webIp:${WebLoginServer.port}',
+                    style: FontUtils.poppins(
+                      fontSize: 15,
+                      color: const Color(0xFF27ae60),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (_webIp != null) const SizedBox(height: 16),
           Text(
-            '本地模式下请使用浏览器访问上方地址进行配置',
+            '手机与电视需在同一 Wi-Fi 下；浏览器打开上方地址即可填写登录信息',
             style: FontUtils.poppins(
               fontSize: 12,
               color: const Color(0xFFbdc3c7),
