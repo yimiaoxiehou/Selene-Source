@@ -73,6 +73,9 @@ class _LoginScreenState extends State<LoginScreen> {
       onSubmit: _handleWebSubmit,
       getDefaults: _webDefaults,
     ).then((ip) {
+      if (kDebugMode && ip != null) {
+        debugPrint('WEBLOGIN: 手机访问地址 http://$ip:${WebLoginServer.port}');
+      }
       if (mounted) setState(() => _webIp = ip);
     });
   }
