@@ -285,55 +285,61 @@ class _MainLayoutState extends State<MainLayout> {
             resizeToAvoidBottomInset: !widget.isSearchMode,
             body: Stack(
               children: [
-                // 主要内容区域
-                Column(
+                // 左侧菜单（可选）+ 主内容区域
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // 主内容区域（包含header和content）
+                    if (widget.showBottomNav) _buildLeftNavRail(themeService),
                     Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: themeService.isDarkMode
-                              ? const Color(0xFF000000) // 深色模式纯黑色
-                              : null,
-                          gradient: themeService.isDarkMode
-                              ? null
-                              : const LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Color(0xFFe6f3fb), // 浅色模式渐变
-                                    Color(0xFFeaf3f7),
-                                    Color(0xFFf7f7f3),
-                                    Color(0xFFe9ecef),
-                                    Color(0xFFdbe3ea),
-                                    Color(0xFFd3dde6),
-                                  ],
-                                  stops: [0.0, 0.18, 0.38, 0.60, 0.80, 1.0],
-                                ),
-                        ),
-                        child: Column(
-                          children: [
-                            // Windows 自定义标题栏
-                            if (Platform.isWindows)
-                              WindowsTitleBar(
-                                customBackgroundColor: widget.isSearchMode
-                                    ? (themeService.isDarkMode
-                                        ? const Color(0xFF121212)
-                                        : const Color(0xFFf5f5f5))
+                      child: Column(
+                        children: [
+                          // 主内容区域（包含header和content）
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: themeService.isDarkMode
+                                    ? const Color(0xFF000000) // 深色模式纯黑色
                                     : null,
+                                gradient: themeService.isDarkMode
+                                    ? null
+                                    : const LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Color(0xFFe6f3fb), // 浅色模式渐变
+                                          Color(0xFFeaf3f7),
+                                          Color(0xFFf7f7f3),
+                                          Color(0xFFe9ecef),
+                                          Color(0xFFdbe3ea),
+                                          Color(0xFFd3dde6),
+                                        ],
+                                        stops: [0.0, 0.18, 0.38, 0.60, 0.80, 1.0],
+                                      ),
                               ),
-                            // 固定 Header
-                            _buildHeader(context, themeService),
-                            // 主要内容区域
-                            Expanded(
-                              child: widget.content,
+                              child: Column(
+                                children: [
+                                  // Windows 自定义标题栏
+                                  if (Platform.isWindows)
+                                    WindowsTitleBar(
+                                      customBackgroundColor: widget.isSearchMode
+                                          ? (themeService.isDarkMode
+                                              ? const Color(0xFF121212)
+                                              : const Color(0xFFf5f5f5))
+                                          : null,
+                                    ),
+                                  // 固定 Header
+                                  _buildHeader(context, themeService),
+                                  // 主要内容区域
+                                  Expanded(
+                                    child: widget.content,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                    // 底部导航栏（可选）
-                    if (widget.showBottomNav) _buildBottomNavBar(themeService),
                   ],
                 ),
                 // 用户菜单覆盖层 - 现在会覆盖整个屏幕包括navbar
@@ -883,7 +889,7 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 
-  Widget _buildBottomNavBar(ThemeService themeService) {
+  Widget _buildLeftNavRail(ThemeService themeService) {
     final List<Map<String, dynamic>> navItems = [
       {'icon': LucideIcons.house, 'label': '首页'},
       {'icon': LucideIcons.video, 'label': '电影'},
@@ -893,66 +899,54 @@ class _MainLayoutState extends State<MainLayout> {
       {'icon': LucideIcons.radio, 'label': '直播'},
     ];
 
-    final isTablet = DeviceUtils.isTablet(context);
-
     return Container(
-      decoration: BoxDecoration(
-        color: themeService.isDarkMode
-            ? const Color(0xFF1e1e1e).withOpacity(0.9)
-            : Colors.white.withOpacity(0.9),
-        border: Border(
-          top: BorderSide(
-            color: themeService.isDarkMode
-                ? const Color(0xFF333333).withOpacity(0.3)
-                : Colors.white.withOpacity(0.2),
-            width: 1,
+      width: 92,
+      color: themeService.isDarkMode
+          ? const Color(0xFF1e1e1e)
+          : Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          // 顶部 Logo
+          const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: Icon(
+              LucideIcons.tv,
+              size: 28,
+              color: Color(0xFF27ae60),
+            ),
           ),
-        ),
-      ),
-      padding: EdgeInsets.only(
-        left: 0,
-        right: 0,
-        top: 8,
-        bottom: MediaQuery.of(context).padding.bottom + 8, // 手动处理底部安全区域
-      ),
-      child: Row(
-        mainAxisAlignment:
-            isTablet ? MainAxisAlignment.center : MainAxisAlignment.spaceEvenly,
-          children: [
-            // 平板模式下添加左侧空白
-            if (isTablet) const Spacer(flex: 3),
+          // 导航按钮（TV/遥控：可聚焦、上下移动、OK 切换分区；PC：悬停高亮）
+          ...navItems.asMap().entries.expand((entry) {
+            int index = entry.key;
+            Map<String, dynamic> item = entry.value;
+            bool isSelected =
+                !widget.isSearchMode && widget.currentBottomNavIndex == index;
 
-            // 导航按钮（TV/遥控：每个按钮可聚焦，OK 键切换分区）
-            ...navItems.asMap().entries.expand((entry) {
-              int index = entry.key;
-              Map<String, dynamic> item = entry.value;
-              bool isSelected =
-                  !widget.isSearchMode && widget.currentBottomNavIndex == index;
-
-              return [
-                Focus(
-                  onKeyEvent: (node, event) {
-                    if (event is KeyDownEvent &&
-                        (event.logicalKey == LogicalKeyboardKey.enter ||
-                            event.logicalKey == LogicalKeyboardKey.select ||
-                            event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
-                      widget.onBottomNavChanged(index);
-                      return KeyEventResult.handled;
-                    }
-                    return KeyEventResult.ignored;
-                  },
-                  child: Builder(
-                    builder: (context) {
-                      final focusNode = Focus.of(context);
-                      final bool isFocused = focusNode.hasFocus;
+            return [
+              Focus(
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent &&
+                      (event.logicalKey == LogicalKeyboardKey.enter ||
+                       event.logicalKey == LogicalKeyboardKey.select ||
+                       event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+                    widget.onBottomNavChanged(index);
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: Builder(
+                  builder: (context) {
+                    final focusNode = Focus.of(context);
+                    final bool isFocused = focusNode.hasFocus;
                     final bool isHovered =
                         DeviceUtils.isPC() && _hoveredNavIndex == index;
                     final Color activeColor = const Color(0xFF27ae60);
-                    final Color hoverColor = const Color(0xFF52c77a);
                     final Color iconColor = (isSelected || isFocused)
                         ? activeColor
                         : isHovered
-                            ? hoverColor
+                            ? const Color(0xFF52c77a)
                             : themeService.isDarkMode
                                 ? const Color(0xFFb0b0b0)
                                 : const Color(0xFF7f8c8d);
@@ -978,34 +972,30 @@ class _MainLayoutState extends State<MainLayout> {
                         onTap: () {
                           widget.onBottomNavChanged(index);
                         },
-                        behavior: HitTestBehavior.opaque, // 确保整个区域都可以点击
+                        behavior: HitTestBehavior.opaque,
                         child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isTablet ? 16 : 12,
-                            vertical: 8,
-                          ),
-                          decoration: isFocused
+                          margin: const EdgeInsets.symmetric(
+                              vertical: 6, horizontal: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: (isSelected || isFocused)
                               ? BoxDecoration(
-                                  border: Border.all(
-                                    color: activeColor,
-                                    width: 2,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: activeColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
                                 )
                               : null,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                item['icon'],
+                                item['icon'] as IconData,
                                 color: iconColor,
                                 size: 24,
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                item['label'],
+                                item['label'] as String,
                                 style: FontUtils.poppins(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   fontWeight: (isSelected || isFocused)
                                       ? FontWeight.w600
                                       : FontWeight.w400,
@@ -1017,18 +1007,15 @@ class _MainLayoutState extends State<MainLayout> {
                         ),
                       ),
                     );
-                  }),
+                  },
                 ),
-                // 平板模式下在按钮之间添加间距
-                if (isTablet && index < navItems.length - 1)
-                  const SizedBox(width: 36),
-              ];
-            }),
-
-            // 平板模式下添加右侧空白
-            if (isTablet) const Spacer(flex: 3),
-          ],
-        ),
+              ),
+              // 条目之间间距
+              if (index < navItems.length - 1) const SizedBox(height: 4),
+            ];
+          }),
+        ],
+      ),
     );
   }
 }

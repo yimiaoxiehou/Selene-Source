@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:io' show Platform;
 import 'package:macos_window_utils/macos_window_utils.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeService extends ChangeNotifier {
+  static const String _themeKey = 'theme_mode';
   ThemeMode _themeMode = ThemeMode.system;
 
   ThemeMode get themeMode => _themeMode;
@@ -19,15 +21,38 @@ class ThemeService extends ChangeNotifier {
   }
 
   void _loadTheme() async {
-    // 每次启动都默认跟随系统主题，不保存用户的手动选择
-    _themeMode = ThemeMode.system;
+    // 恢复用户手动选择的主题（黑夜模式持久化）；无记录时跟随系统
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_themeKey);
+      if (saved == 'light') {
+        _themeMode = ThemeMode.light;
+      } else if (saved == 'dark') {
+        _themeMode = ThemeMode.dark;
+      } else {
+        _themeMode = ThemeMode.system;
+      }
+    } catch (e) {
+      _themeMode = ThemeMode.system;
+    }
     notifyListeners();
     _updateMacOSWindowAppearance();
   }
 
   void setThemeMode(ThemeMode mode) async {
     _themeMode = mode;
-    // 不再保存到 SharedPreferences，每次启动都重新遵循系统主题
+    // 持久化用户的主题选择，下次启动恢复
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final value = mode == ThemeMode.light
+          ? 'light'
+          : mode == ThemeMode.dark
+              ? 'dark'
+              : 'system';
+      await prefs.setString(_themeKey, value);
+    } catch (e) {
+      // 保存失败时静默忽略，不影响本次切换
+    }
     notifyListeners();
     _updateMacOSWindowAppearance();
   }
