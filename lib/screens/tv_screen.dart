@@ -520,6 +520,7 @@ class _TvScreenState extends State<TvScreen> {
                 _handleMenuAction(videoInfo, action);
               },
               contentType: 'tv',
+              onNearEnd: _loadMoreTvShows,
             ),
             // 底部指示器 - 加载更多或到底提示
             if (_isLoadingMore)

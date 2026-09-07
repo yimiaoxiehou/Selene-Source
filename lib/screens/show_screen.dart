@@ -504,6 +504,7 @@ class _ShowScreenState extends State<ShowScreen> {
                 _handleMenuAction(videoInfo, action);
               },
               contentType: 'show',
+              onNearEnd: _loadMoreShows,
             ),
             // 底部指示器 - 加载更多或到底提示
             if (_isLoadingMore)

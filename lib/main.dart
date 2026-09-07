@@ -20,6 +20,10 @@ import 'package:bitsdojo_window/bitsdojo_window.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 性能优化：扩大图片缓存（STB 内存充足），减少瀑布流滚动时的封面重建与卡顿
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 200 << 20; // 200MB
+  PaintingBinding.instance.imageCache.maximumSize = 3000;
+
   // 调试：将 Flutter 框架错误（构建/渲染异常）输出到 logcat，便于在 STB 上定位黑屏等无 UI 报错的问题
   FlutterError.onError = (details) {
     debugPrint('FLUTTER_ERROR: ${details.exceptionAsString()}');

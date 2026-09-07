@@ -658,6 +658,7 @@ class _LiveScreenState extends State<LiveScreen>
 
     return GridView.builder(
       controller: _scrollController,
+      cacheExtent: 500, // 预渲染范围，减少 TV 瀑布流滚动时的封面闪烁/卡顿
       padding: const EdgeInsets.all(16),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,

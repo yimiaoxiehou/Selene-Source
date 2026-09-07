@@ -593,6 +593,7 @@ class _AnimeScreenState extends State<AnimeScreen> {
                       _handleMenuAction(videoInfo, action);
                     },
                     contentType: 'anime',
+                    onNearEnd: _loadMoreAnimeData,
                   ),
             // 底部指示器 - 加载更多或到底提示
             if (_selectedCategoryValue == '每日放送')
@@ -633,8 +634,8 @@ class _AnimeScreenState extends State<AnimeScreen> {
           SizedBox(
             height: 20, // 固定高度确保一致性
             child: Text(
-              _selectedCategoryValue == '每日放送' 
-                  ? '来自 Bangumi 的精选内容'
+              _selectedCategoryValue == '每日放送'
+                  ? '来自 anical.cn 的每日放送'
                   : '来自豆瓣的精选内容',
               style: FontUtils.poppins(
                 fontSize: 14,

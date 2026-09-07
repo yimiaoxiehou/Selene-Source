@@ -600,9 +600,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
   Widget _buildPlayerWidget() {
     final videoUrl = _currentChannel.url;
     return VideoPlayerWidget(
-      surface: DeviceUtils.isDesktopOrTV()
-          ? VideoPlayerSurface.desktop
-          : VideoPlayerSurface.mobile,
+      surface: VideoPlayerSurface.desktop,
       key: ValueKey(_currentChannel.id),
       url: videoUrl,
       headers: <String, String>{

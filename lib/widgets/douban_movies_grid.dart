@@ -15,6 +15,7 @@ class DoubanMoviesGrid extends StatelessWidget {
   final Function(VideoInfo) onVideoTap;
   final Function(VideoInfo, VideoMenuAction)? onGlobalMenuAction;
   final String contentType; // 'movie' 或 'tv'
+  final VoidCallback? onNearEnd; // 瀑布流临近底部时触发，用于 TV 焦点预加载更多
 
   const DoubanMoviesGrid({
     super.key,
@@ -24,6 +25,7 @@ class DoubanMoviesGrid extends StatelessWidget {
     required this.onVideoTap,
     this.onGlobalMenuAction,
     this.contentType = 'movie', // 默认为电影
+    this.onNearEnd,
   });
 
   @override
@@ -202,14 +204,20 @@ class DoubanMoviesGrid extends StatelessWidget {
           itemBuilder: (context, index) {
             final movie = movies![index];
             final videoInfo = movie.toVideoInfo();
-            
+
+            // 临近底部（最后两行）时触发预加载，TV 焦点驱动提前拉取下一页
+            final bool nearEnd =
+                index >= movies!.length - crossAxisCount * 2;
             return VideoCard(
               videoInfo: videoInfo,
               onTap: () => onVideoTap(videoInfo),
               from: 'douban',
               cardWidth: itemWidth,
               onGlobalMenuAction: onGlobalMenuAction != null ? (action) => onGlobalMenuAction!(videoInfo, action) : null,
-              isFavorited: false, 
+              isFavorited: false,
+              onFocusChanged: (hasFocus) {
+                if (hasFocus && nearEnd) onNearEnd?.call();
+              },
             );
           },
         );

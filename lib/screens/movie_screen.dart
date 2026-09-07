@@ -488,6 +488,7 @@ class _MovieScreenState extends State<MovieScreen> {
                 _handleMenuAction(videoInfo, action);
               },
               contentType: 'movie',
+              onNearEnd: _loadMoreMovies,
             ),
             // 底部指示器 - 加载更多或到底提示
             if (_isLoadingMore)

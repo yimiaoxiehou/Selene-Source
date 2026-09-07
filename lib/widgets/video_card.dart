@@ -22,6 +22,8 @@ class VideoCard extends StatefulWidget {
   final bool isFavorited; // 是否已收藏
   final List<SearchResult>? originalResults;
   final Function(SearchResult)? onSourceSelected;
+  final void Function(bool focused)?
+      onFocusChanged; // TV 焦点变化回调（用于瀑布流临近底部预加载）
 
   const VideoCard({
     super.key,
@@ -33,6 +35,7 @@ class VideoCard extends StatefulWidget {
     this.isFavorited = false,
     this.originalResults,
     this.onSourceSelected,
+    this.onFocusChanged,
   });
 
   @override
@@ -651,42 +654,46 @@ class _VideoCardState extends State<VideoCard> {
 
             // Android TV：使卡片可获得焦点并显示焦点高亮，遥控器 OK/Enter 触发 onTap
             if (isTV) {
-              return Focus(
-                onKeyEvent: (node, event) {
-                  if (event is KeyDownEvent &&
-                      (event.logicalKey == LogicalKeyboardKey.enter ||
-                       event.logicalKey == LogicalKeyboardKey.select ||
-                       event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
-                    widget.onTap?.call();
-                    return KeyEventResult.handled;
-                  }
-                  return KeyEventResult.ignored;
-                },
-                child: Builder(
-                  builder: (ctx) {
-                    final bool focused = Focus.of(ctx).hasFocus;
-                    return AnimatedScale(
-                      scale: focused ? 1.08 : 1.0,
-                      duration: const Duration(milliseconds: 150),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: focused
-                              ? Border.all(
-                                  color: const Color(0xFF27ae60),
-                                  width: 3,
-                                )
-                              : null,
-                        ),
-                        child: tappable,
-                      ),
-                    );
+              return RepaintBoundary(
+                child: Focus(
+                  onFocusChange: (hasFocus) =>
+                      widget.onFocusChanged?.call(hasFocus),
+                  onKeyEvent: (node, event) {
+                    if (event is KeyDownEvent &&
+                        (event.logicalKey == LogicalKeyboardKey.enter ||
+                         event.logicalKey == LogicalKeyboardKey.select ||
+                         event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+                      widget.onTap?.call();
+                      return KeyEventResult.handled;
+                    }
+                    return KeyEventResult.ignored;
                   },
+                  child: Builder(
+                    builder: (ctx) {
+                      final bool focused = Focus.of(ctx).hasFocus;
+                      return AnimatedScale(
+                        scale: focused ? 1.08 : 1.0,
+                        duration: const Duration(milliseconds: 150),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: focused
+                                ? Border.all(
+                                    color: const Color(0xFF27ae60),
+                                    width: 3,
+                                  )
+                                : null,
+                          ),
+                          child: tappable,
+                        ),
+                      );
+                    },
+                  ),
                 ),
               );
             }
 
-            return tappable;
+            return RepaintBoundary(child: tappable);
           },
         );
       },
