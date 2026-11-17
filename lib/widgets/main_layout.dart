@@ -384,8 +384,8 @@ class _MainLayoutState extends State<MainLayout> {
                 ? const Color(0xFF121212)
                 : const Color(0xFFf5f5f5)
             : themeService.isDarkMode
-                ? const Color(0xFF1e1e1e).withOpacity(0.9)
-                : Colors.white.withOpacity(0.8),
+                ? const Color(0xFF1e1e1e).withValues(alpha: 0.9)
+                : Colors.white.withValues(alpha: 0.8),
       ),
       child: widget.isSearchMode
           ? _buildSearchHeader(context, themeService, isTablet)

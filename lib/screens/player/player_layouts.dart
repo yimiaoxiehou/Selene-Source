@@ -244,7 +244,7 @@ extension on _PlayerScreenState {
                         width: 100,
                         height: 100,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2ecc71).withOpacity(0.3),
+                          color: const Color(0xFF2ecc71).withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(20),
                         ),
                       ),
@@ -301,8 +301,8 @@ extension on _PlayerScreenState {
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                         color: (isDarkMode ? Colors.white70 : Colors.black54)
-                            .withOpacity(
-                          0.3 + (_textAnimationController.value * 0.7),
+                            .withValues(
+                          alpha: 0.3 + (_textAnimationController.value * 0.7),
                         ),
                       ),
                     );

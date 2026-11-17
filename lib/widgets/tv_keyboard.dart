@@ -83,7 +83,7 @@ class TvKeyboard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDone
             ? (active ? const Color(0xFF27ae60) : const Color(0xFF2c3e50))
-            : (active ? const Color(0xFF27ae60) : Colors.white.withOpacity(0.7)),
+            : (active ? const Color(0xFF27ae60) : Colors.white.withValues(alpha: 0.7)),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: active ? const Color(0xFF27ae60) : Colors.transparent,
@@ -215,7 +215,7 @@ class TvTextField extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: focused ? const Color(0xFF27ae60) : Colors.transparent,

@@ -1144,7 +1144,7 @@ extension on _PlayerScreenState {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.orange.withOpacity(0.3),
+                        color: Colors.orange.withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -1177,10 +1177,10 @@ extension on _PlayerScreenState {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF8B4513).withOpacity(0.1),
+                    color: const Color(0xFF8B4513).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: const Color(0xFF8B4513).withOpacity(0.3),
+                      color: const Color(0xFF8B4513).withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),

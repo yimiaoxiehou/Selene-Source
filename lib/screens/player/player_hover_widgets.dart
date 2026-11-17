@@ -89,7 +89,7 @@ class _EpisodeCardWithHoverState extends State<_EpisodeCardWithHover> {
         child: Container(
           decoration: BoxDecoration(
             color: widget.isCurrentEpisode
-                ? Colors.green.withOpacity(0.2)
+                ? Colors.green.withValues(alpha: 0.2)
                 : (_isHovering && DeviceUtils.isPC()
                     ? (widget.isDarkMode
                         ? const Color(0xFF1A3D2E) // 深色模式下的浅绿色
@@ -190,7 +190,7 @@ class _SourceCardWithHoverState extends State<_SourceCardWithHover> {
         child: Container(
           decoration: BoxDecoration(
             color: widget.isCurrentSource
-                ? Colors.green.withOpacity(0.2)
+                ? Colors.green.withValues(alpha: 0.2)
                 : (_isHovering && DeviceUtils.isPC()
                     ? (widget.isDarkMode
                         ? const Color(0xFF1A3D2E) // 深色模式下的浅绿色
